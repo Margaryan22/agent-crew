@@ -1,0 +1,20 @@
+Agent Crew for Visual Studio Code
+Copyright (c) 2026 The Agent Crew authors. All rights reserved.
+
+This software is licensed, not sold. You may install and use the extension in Visual Studio Code
+and compatible editors for your own work, including commercial projects. You may not copy,
+modify, redistribute, sublicense or sell the extension or any part of it, or reverse engineer it
+except where applicable law expressly permits it.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE, INCLUDING ANY
+CODE, COMMANDS OR COSTS PRODUCED BY AI AGENTS RUN THROUGH IT.
+
+Third-party components
+----------------------
+This extension includes the Claude Agent SDK and the Claude Code runtime
+(dist/sdk, dist/bin), © Anthropic PBC. All rights reserved. Their use is subject to Anthropic's
+legal agreements: https://code.claude.com/docs/en/legal-and-compliance

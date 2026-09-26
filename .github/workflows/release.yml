@@ -1,0 +1,110 @@
+name: Release
+
+# Push a tag vX.Y.Z matching package.json. Odd minor (0.1.x, 0.3.x…) → pre-release,
+# even minor (0.2.x, 0.4.x…) → release. Everything is packaged on Linux so the bundled
+# Claude Code binary keeps its executable bit.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - id: version
+        name: Check the tag against package.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"; exit 1
+          fi
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          if [ $((MINOR % 2)) -eq 1 ]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:unit
+
+  package:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the agent-crew plugin
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.AGENT_CREW_PLUGIN_REPO }}
+          ref: ${{ vars.AGENT_CREW_PLUGIN_REF || 'main' }}
+          token: ${{ secrets.AGENT_CREW_PLUGIN_TOKEN || github.token }}
+          path: .plugin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Package ${{ matrix.target }}
+        run: node scripts/package.mjs --target ${{ matrix.target }}
+        env:
+          AGENT_CREW_PLUGIN_DIR: ${{ github.workspace }}/.plugin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.target }}
+          path: vsix/*.vsix
+          if-no-files-found: error
+
+  publish:
+    needs: [verify, package]
+    runs-on: ubuntu-latest
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write # OIDC token for Microsoft Entra ID workload identity
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          path: vsix
+          merge-multiple: true
+
+      # VS Code Marketplace: Microsoft Entra ID workload identity federation — no PAT.
+      # Needs a managed identity / app registration with a federated credential for this repo's
+      # "marketplace" environment, added as a member of the Marketplace publisher (see NOTES.md).
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Publish to the VS Code Marketplace
+        run: |
+          FLAGS=""
+          if [ "${{ needs.verify.outputs.prerelease }}" = "true" ]; then FLAGS="--pre-release"; fi
+          npx vsce publish --azure-credential --packagePath vsix/*.vsix $FLAGS
+
+      # Open VSX (Cursor, Windsurf, VSCodium…)
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          FLAGS=""
+          if [ "${{ needs.verify.outputs.prerelease }}" = "true" ]; then FLAGS="--pre-release"; fi
+          npx ovsx publish --packagePath vsix/*.vsix -p "$OVSX_PAT" $FLAGS
