@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+coverage/
+vsix/
+*.vsix
+.vscode-test/
+.DS_Store
+evals/results/*/
+plugins/agent-crew/evals/results/
