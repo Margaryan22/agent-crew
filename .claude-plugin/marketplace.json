@@ -1,0 +1,17 @@
+{
+  "name": "agent-crew",
+  "owner": {
+    "name": "Margaryan22",
+    "url": "https://github.com/Margaryan22"
+  },
+  "description": "Agent Crew — a team of AI agents that turns an idea for a small-business tool into a working, tested project.",
+  "plugins": [
+    {
+      "name": "agent-crew",
+      "source": "./plugins/agent-crew",
+      "description": "PM, architect, QA, developers and security agents that build a project from an idea, keeping all state in .crew/.",
+      "category": "development",
+      "tags": ["agents", "team", "project-generator", "tanstack"]
+    }
+  ]
+}

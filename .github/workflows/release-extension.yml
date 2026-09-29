@@ -1,14 +1,19 @@
-name: Release
+name: Release extension
 
-# Push a tag vX.Y.Z matching package.json. Odd minor (0.1.x, 0.3.x…) → pre-release,
+# Push a tag extension-vX.Y.Z matching extension/package.json. Rewritten for the universal
+# companion-mode VSIX in step E of PLAN.md. Odd minor (0.1.x, 0.3.x…) → pre-release,
 # even minor (0.2.x, 0.4.x…) → release. Everything is packaged on Linux so the bundled
 # Claude Code binary keeps its executable bit.
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ['extension-v*.*.*']
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: extension
 
 jobs:
   verify:
@@ -21,11 +26,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: extension/package-lock.json
       - id: version
         name: Check the tag against package.json
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+          if [ "extension-v$VERSION" != "$GITHUB_REF_NAME" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"; exit 1
           fi
           MINOR=$(echo "$VERSION" | cut -d. -f2)
@@ -43,26 +49,18 @@ jobs:
         target: [linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64]
     steps:
       - uses: actions/checkout@v4
-      - name: Check out the agent-crew plugin
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.AGENT_CREW_PLUGIN_REPO }}
-          ref: ${{ vars.AGENT_CREW_PLUGIN_REF || 'main' }}
-          token: ${{ secrets.AGENT_CREW_PLUGIN_TOKEN || github.token }}
-          path: .plugin
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: extension/package-lock.json
       - run: npm ci
       - name: Package ${{ matrix.target }}
         run: node scripts/package.mjs --target ${{ matrix.target }}
-        env:
-          AGENT_CREW_PLUGIN_DIR: ${{ github.workspace }}/.plugin
       - uses: actions/upload-artifact@v4
         with:
           name: vsix-${{ matrix.target }}
-          path: vsix/*.vsix
+          path: extension/vsix/*.vsix
           if-no-files-found: error
 
   publish:
@@ -78,11 +76,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: extension/package-lock.json
       - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           pattern: vsix-*
-          path: vsix
+          path: extension/vsix
           merge-multiple: true
 
       # VS Code Marketplace: Microsoft Entra ID workload identity federation — no PAT.

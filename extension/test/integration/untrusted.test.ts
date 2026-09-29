@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import type { CrewTestApi } from '../../src/extension';
 import { FakeSdk } from '../unit/fakes';
 
-const EXT_ID = 'agent-crew.agent-crew';
+const EXT_ID = 'whysargis.agent-crew';
 
 describe('Agent Crew — untrusted workspace', () => {
   it('never starts a session', async () => {

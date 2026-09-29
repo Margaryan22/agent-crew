@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: crew-contract
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: crew-contract
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crew-contract/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Generated files are up to date
+        run: npm run check:generated
+
+  plugin:
+    name: plugin manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate the marketplace
+        run: claude plugin validate . --strict
+      - name: Validate the plugin
+        run: claude plugin validate plugins/agent-crew --strict
+
+  extension:
+    name: VS Code extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Integration tests
+        run: xvfb-run -a npm run test:integration
+      - name: Integration tests (minimum VS Code version)
+        run: xvfb-run -a npx vscode-test
+        env:
+          VSCODE_TEST_VERSION: '1.90.0'
+      - name: Package (linux-x64)
+        run: node scripts/package.mjs --target linux-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix-ci-linux-x64
+          path: extension/vsix/*.vsix
+          retention-days: 7

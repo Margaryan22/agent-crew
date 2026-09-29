@@ -2,7 +2,7 @@
 
 ## Getting help
 
-- **Bugs and feature requests:** open an issue at <https://github.com/agent-crew/agent-crew-vscode/issues>.
+- **Bugs and feature requests:** open an issue at <https://github.com/Margaryan22/agent-crew/issues>.
 - Please include the Agent Crew version, your editor (VS Code, Cursor, Windsurf) and its version, your OS, and the relevant part of the **Crew** output channel (**Crew: Show Log**). The log never contains your API key, but review it for project details you would rather not share.
 - Run **Crew: Check Dependencies** first — it finds most setup problems.
 

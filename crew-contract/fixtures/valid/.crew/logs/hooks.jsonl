@@ -1,0 +1,1 @@
+{"ts":"2026-09-29T12:10:00Z","session_id":"1b2c3d4e-0000-4000-8000-000000000001","hook":"guard-dangerous","event":"PreToolUse","tool":"Bash","agent_type":"agent-crew:backend","decision":"deny","reason":"git push to main is not allowed","input_digest":"9c1b2a3d4e5f60718293a4b5"}

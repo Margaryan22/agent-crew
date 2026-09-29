@@ -1,0 +1,46 @@
+{
+  "name": "agent-crew",
+  "displayName": "Agent Crew",
+  "version": "0.1.0",
+  "description": "A crew of AI agents (PM, critic, architect, QA, frontend, backend, DB, security) that turns an idea for a small-business tool into a working, tested project. All state lives in .crew/ in the project.",
+  "author": {
+    "name": "Margaryan22",
+    "url": "https://github.com/Margaryan22"
+  },
+  "homepage": "https://github.com/Margaryan22/agent-crew",
+  "repository": "https://github.com/Margaryan22/agent-crew",
+  "keywords": ["agents", "team", "project-generator", "tanstack", "drizzle", "playwright"],
+  "skills": ["./skills/core", "./skills/stacks/tanstack", "./skills/commands"],
+  "userConfig": {
+    "budget_cap_usd": {
+      "type": "number",
+      "title": "Budget cap per project (USD)",
+      "description": "Stop a project once estimated spend reaches this amount. Only enforced exactly when a host reports real costs (API-key sessions, eval runs); on a subscription your plan limits apply.",
+      "default": 20,
+      "min": 0,
+      "max": 100000
+    },
+    "stack_profile": {
+      "type": "string",
+      "title": "Stack profile",
+      "description": "Technology stack the crew builds with.",
+      "options": ["tanstack"],
+      "default": "tanstack"
+    },
+    "autonomy": {
+      "type": "string",
+      "title": "Autonomy",
+      "description": "full: the crew only stops for escalations. review: the crew shows the brief and waits for your approval before building.",
+      "options": ["full", "review"],
+      "default": "full"
+    },
+    "brief_review_minutes": {
+      "type": "number",
+      "title": "Brief review wait (minutes)",
+      "description": "In review autonomy, how long a host UI waits for your brief approval before continuing.",
+      "default": 10,
+      "min": 1,
+      "max": 240
+    }
+  }
+}

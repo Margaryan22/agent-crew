@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^E-\\d{3,}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "stuck",
+        "access",
+        "question",
+        "permission",
+        "brief-review"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "attempts_exceeded",
+        "repeated_error",
+        "pm_critic_deadlock",
+        "edit_flipflop",
+        "task_budget"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "plugin",
+        "host"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "answered",
+        "resolved",
+        "cancelled"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "options": {
+      "minItems": 1,
+      "maxItems": 4,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      }
+    },
+    "recommended": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task": {
+      "type": "string",
+      "pattern": "^T-\\d{3,}$"
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "answer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answered_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "answered_by": {
+      "type": "string",
+      "enum": [
+        "human",
+        "auto",
+        "eval"
+      ]
+    },
+    "decision": {
+      "type": "string",
+      "pattern": "^ADR-\\d{3,}$"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "source",
+    "status",
+    "question",
+    "options",
+    "created_at"
+  ],
+  "additionalProperties": {},
+  "$id": "https://github.com/Margaryan22/agent-crew/crew-contract/schemas/escalation.schema.json",
+  "description": "agent-crew .crew/ contract v1: escalation. Cross-field rules are enforced by the Zod schema in crew-contract/src/schemas.ts."
+}

@@ -2,8 +2,7 @@
 //
 // Source lookup order:
 //   1. AGENT_CREW_PLUGIN_DIR environment variable
-//   2. ../agent-crew           (sibling checkout)
-//   3. ../agent-crew/plugin
+//   2. ../plugins/agent-crew   (this repository)
 //
 // --strict   fail when no plugin is found (used for packaging / CI)
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
@@ -28,8 +27,7 @@ function manifestOf(dir) {
 
 const candidates = [
   process.env.AGENT_CREW_PLUGIN_DIR,
-  path.join(root, '..', 'agent-crew'),
-  path.join(root, '..', 'agent-crew', 'plugin'),
+  path.join(root, '..', 'plugins', 'agent-crew'),
 ]
   .filter(Boolean)
   .map((p) => path.resolve(root, p));

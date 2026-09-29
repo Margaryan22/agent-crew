@@ -5,7 +5,7 @@ import type { CrewTestApi } from '../../src/extension';
 import type { ChatEntry } from '../../src/shared/protocol';
 import { assistantText, FakeSdk, initMessage, resultMessage } from '../unit/fakes';
 
-const EXT_ID = 'agent-crew.agent-crew';
+const EXT_ID = 'whysargis.agent-crew';
 const KEY = 'sk-ant-api03-integration-test-key-0123456789abcdef';
 
 async function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<void> {

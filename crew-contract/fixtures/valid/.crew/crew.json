@@ -1,0 +1,6 @@
+{
+  "contract_version": 1,
+  "plugin": { "name": "agent-crew", "version": "0.1.0" },
+  "stack_profile": "tanstack",
+  "created_at": "2026-09-29T10:00:00Z"
+}

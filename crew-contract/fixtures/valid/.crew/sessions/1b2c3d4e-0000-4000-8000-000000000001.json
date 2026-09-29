@@ -1,0 +1,6 @@
+{
+  "session_id": "1b2c3d4e-0000-4000-8000-000000000001",
+  "command": "agent-crew:new-project",
+  "started_at": "2026-09-29T10:00:00Z",
+  "assistant": "claude-code"
+}

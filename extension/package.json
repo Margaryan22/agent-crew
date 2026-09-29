@@ -3,7 +3,7 @@
   "displayName": "Agent Crew",
   "description": "Run a crew of Claude agents from your IDE: chat, live task board, escalations and budget control — no terminal required.",
   "version": "0.1.0",
-  "publisher": "agent-crew",
+  "publisher": "whysargis",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "resources/icon.png",
   "galleryBanner": {
@@ -12,12 +12,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/agent-crew/agent-crew-vscode.git"
+    "url": "https://github.com/Margaryan22/agent-crew.git",
+    "directory": "extension"
   },
   "bugs": {
-    "url": "https://github.com/agent-crew/agent-crew-vscode/issues"
+    "url": "https://github.com/Margaryan22/agent-crew/issues"
   },
-  "homepage": "https://github.com/agent-crew/agent-crew-vscode#readme",
+  "homepage": "https://github.com/Margaryan22/agent-crew/tree/main/extension#readme",
   "engines": {
     "vscode": "^1.90.0"
   },

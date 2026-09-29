@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "revise",
+        "deadlock"
+      ]
+    },
+    "checklist": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "measurability": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "risks": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "scope",
+        "measurability",
+        "risks"
+      ]
+    }
+  },
+  "required": [
+    "round",
+    "verdict",
+    "checklist"
+  ],
+  "additionalProperties": {},
+  "$id": "https://github.com/Margaryan22/agent-crew/crew-contract/schemas/brief-review.schema.json",
+  "description": "agent-crew .crew/ contract v1: brief-review. Cross-field rules are enforced by the Zod schema in crew-contract/src/schemas.ts."
+}

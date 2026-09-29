@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ADR-\\d{3,}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "accepted",
+        "superseded",
+        "rejected"
+      ]
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+    },
+    "source": {
+      "type": "string",
+      "pattern": "^E-\\d{3,}$"
+    },
+    "supersedes": {
+      "type": "string",
+      "pattern": "^ADR-\\d{3,}$"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "status",
+    "date"
+  ],
+  "additionalProperties": {},
+  "$id": "https://github.com/Margaryan22/agent-crew/crew-contract/schemas/decision.schema.json",
+  "description": "agent-crew .crew/ contract v1: decision. Cross-field rules are enforced by the Zod schema in crew-contract/src/schemas.ts."
+}
