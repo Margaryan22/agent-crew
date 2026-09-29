@@ -1,0 +1,57 @@
+{
+  "$comment": "Stack-independent hook policy. A stack profile adds to it from skills/stacks/<profile>/policy.json.",
+  "protectedBranches": ["main", "master"],
+  "network": {
+    "allowHosts": ["localhost", "127.0.0.1", "::1", "0.0.0.0", "*.localhost", "registry.npmjs.org"]
+  },
+  "packages": {
+    "minAgeDays": 30,
+    "minWeeklyDownloads": 1000,
+    "registryUrl": "https://registry.npmjs.org",
+    "downloadsUrl": "https://api.npmjs.org/downloads/point/last-week",
+    "timeoutMs": 5000,
+    "allow": []
+  },
+  "zones": {
+    "*": [".crew/tasks/**", ".crew/escalations/**"],
+    "orchestrator": [".crew/**", "docs/**"],
+    "pm": [".crew/brief.md", ".crew/interview.md", ".crew/access-checklist.md"],
+    "critic": [".crew/brief.review.md"],
+    "architect": [".crew/decisions/**", "docs/**"],
+    "keeper": [".crew/status.md", ".crew/glossary.md"],
+    "security": [],
+    "qa": [],
+    "frontend": [],
+    "backend": [],
+    "db": []
+  },
+  "safeCommands": [
+    ["crew"],
+    ["ls"], ["cat"], ["head"], ["tail"], ["wc"], ["grep"], ["rg"], ["pwd"], ["echo"], ["printf"], ["test"], ["true"], ["sort"], ["uniq"], ["diff"], ["which"],
+    ["mkdir"], ["touch"], ["cp"], ["mv"],
+    ["node"], ["npm", "test"], ["npm", "run"], ["npm", "ci"], ["npm", "install"], ["npm", "i"], ["npm", "ls"],
+    ["npx", "tsc"], ["npx", "vitest"], ["npx", "prettier"], ["npx", "eslint"],
+    ["git", "status"], ["git", "diff"], ["git", "log"], ["git", "show"], ["git", "add"], ["git", "commit"], ["git", "switch"], ["git", "checkout"], ["git", "branch"], ["git", "merge"], ["git", "stash"], ["git", "rev-parse"], ["git", "restore"], ["git", "worktree"]
+  ],
+  "prices": {
+    "$comment": "USD per million tokens, list prices as of 2026-09-25 — for estimates only. cacheRead defaults to 0.1 x input and cacheWrite to 1.25 x input when absent.",
+    "asOf": "2026-09-25",
+    "models": {
+      "claude-fable-5-1": { "input": 10, "output": 50, "cacheRead": 0.25 },
+      "claude-fable-5": { "input": 10, "output": 50 },
+      "claude-opus-5-5": { "input": 4, "output": 20, "cacheRead": 0.2 },
+      "claude-opus-5": { "input": 5, "output": 25 },
+      "claude-opus-4-8": { "input": 5, "output": 25 },
+      "claude-sonnet-5-5": { "input": 2, "output": 10, "cacheRead": 0.2 },
+      "claude-sonnet-5": { "input": 2, "output": 10 },
+      "claude-sonnet-4-6": { "input": 3, "output": 15 },
+      "claude-haiku-4-5": { "input": 1, "output": 5 }
+    },
+    "aliases": {
+      "fable": "claude-fable-5-1",
+      "opus": "claude-opus-5-5",
+      "sonnet": "claude-sonnet-5-5",
+      "haiku": "claude-haiku-4-5"
+    }
+  }
+}

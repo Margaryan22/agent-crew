@@ -47,6 +47,22 @@ jobs:
       - name: Validate the plugin
         run: claude plugin validate plugins/agent-crew --strict
 
+  hooks:
+    name: plugin hooks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No dependencies: the hooks use only Node built-ins and the committed contract bundle.
+      - name: Hook tests
+        run: node --test 'plugins/agent-crew/hooks/test/*.test.mjs'
+
   extension:
     name: VS Code extension
     runs-on: ubuntu-latest

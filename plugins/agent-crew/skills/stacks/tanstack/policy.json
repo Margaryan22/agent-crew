@@ -1,0 +1,130 @@
+{
+  "$comment": "Hook policy for the tanstack stack profile (TanStack Start + Drizzle + PostgreSQL + Playwright + Vitest). Merged on top of hooks/policy.core.json.",
+  "zones": {
+    "frontend": [
+      "src/routes/**",
+      "src/components/**",
+      "src/hooks/**",
+      "src/styles/**",
+      "src/router.tsx",
+      "src/routeTree.gen.ts",
+      "public/**"
+    ],
+    "backend": [
+      "src/server/**",
+      "src/routes/api/**",
+      "src/lib/**",
+      "src/middleware/**",
+      ".env",
+      ".env.local"
+    ],
+    "db": [
+      "src/db/**",
+      "drizzle/**",
+      "drizzle.config.ts"
+    ],
+    "qa": [
+      "tests/**",
+      "e2e/**",
+      "playwright.config.ts",
+      "vitest.config.ts"
+    ],
+    "architect": [
+      "package.json",
+      "tsconfig.json",
+      "vite.config.ts",
+      "app.config.ts",
+      "docker-compose.yml",
+      ".env.example",
+      "README.md",
+      "CLAUDE.md",
+      "AGENTS.md",
+      ".env",
+      ".env.local"
+    ]
+  },
+  "packages": {
+    "allow": [
+      "@tanstack/react-start",
+      "@tanstack/react-router",
+      "@tanstack/react-query",
+      "@tanstack/react-table",
+      "@tanstack/react-form",
+      "@tanstack/router-plugin",
+      "@tanstack/react-router-devtools",
+      "react",
+      "react-dom",
+      "vite",
+      "vite-tsconfig-paths",
+      "@vitejs/plugin-react",
+      "typescript",
+      "@types/node",
+      "@types/react",
+      "@types/react-dom",
+      "drizzle-orm",
+      "drizzle-kit",
+      "drizzle-zod",
+      "postgres",
+      "pg",
+      "@types/pg",
+      "zod",
+      "better-auth",
+      "argon2",
+      "tailwindcss",
+      "@tailwindcss/vite",
+      "clsx",
+      "date-fns",
+      "dotenv",
+      "tsx",
+      "vitest",
+      "@vitest/coverage-v8",
+      "@playwright/test",
+      "@testing-library/react",
+      "@testing-library/jest-dom",
+      "jsdom",
+      "prettier",
+      "eslint",
+      "@eslint/js",
+      "typescript-eslint"
+    ]
+  },
+  "safeCommands": [
+    [
+      "npx",
+      "drizzle-kit"
+    ],
+    [
+      "npx",
+      "playwright"
+    ],
+    [
+      "npx",
+      "vite"
+    ],
+    [
+      "docker",
+      "compose",
+      "up"
+    ],
+    [
+      "docker",
+      "compose",
+      "ps"
+    ],
+    [
+      "docker",
+      "compose",
+      "logs"
+    ],
+    [
+      "docker",
+      "compose",
+      "stop"
+    ],
+    [
+      "docker",
+      "compose",
+      "exec"
+    ]
+  ]
+}

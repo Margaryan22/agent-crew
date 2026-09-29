@@ -1,0 +1,181 @@
+// Runs dispatch.mjs the way Claude Code does: a separate process, hook input on stdin, hook
+// output on stdout. No network: the package cases here never reach the registry.
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, it } from 'node:test';
+import { pluginRoot, tempDir, tempProject } from './helpers.mjs';
+
+const golden = path.resolve(pluginRoot, '..', '..', 'crew-contract', 'fixtures', 'valid', '.crew');
+
+const dispatch = path.join(pluginRoot, 'hooks', 'scripts', 'dispatch.mjs');
+const hooksConfig = JSON.parse(readFileSync(path.join(pluginRoot, 'hooks', 'hooks.json'), 'utf8'));
+
+function cleanEnv(extra = {}) {
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (/^(CREW_|CLAUDE_|EVAL_CREW_|CODEX_|PLUGIN_)/.test(k)) continue;
+    env[k] = v;
+  }
+  return { ...env, CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_PLUGIN_DATA: tempDir('crew-hook-data-'), ...extra };
+}
+
+function run(event, input, { root, env = {} } = {}) {
+  const res = spawnSync(process.execPath, [dispatch, event], {
+    input: JSON.stringify({ cwd: root, hook_event_name: event, ...input }),
+    env: cleanEnv({ CLAUDE_PROJECT_DIR: root, ...env }),
+    encoding: 'utf8',
+    timeout: 20000,
+  });
+  assert.equal(res.status, 0, res.stderr);
+  return { output: res.stdout.trim() ? JSON.parse(res.stdout) : undefined, stderr: res.stderr };
+}
+
+function startCrewSession(root, session_id = 'sess-1') {
+  const res = run('UserPromptExpansion', { session_id, command_name: 'agent-crew:new-project', transcript_path: '/tmp/t.jsonl' }, { root });
+  return res.output;
+}
+
+function readJsonLines(file) {
+  return readFileSync(file, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+}
+
+describe('hooks.json', () => {
+  it('routes every event through dispatch.mjs', () => {
+    const events = Object.keys(hooksConfig.hooks);
+    assert.deepEqual(events.sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'SubagentStop', 'UserPromptExpansion']);
+    for (const event of events) {
+      for (const group of hooksConfig.hooks[event]) {
+        for (const h of group.hooks) assert.equal(h.command, `node "\${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs" ${event}`);
+      }
+    }
+  });
+});
+
+describe('outside crew sessions', () => {
+  it('stays silent and writes nothing', () => {
+    const root = tempProject();
+    for (const event of ['SessionStart', 'PreToolUse', 'PostToolUse', 'SubagentStop']) {
+      const { output } = run(event, { session_id: 'plain', tool_name: 'Bash', tool_input: { command: 'rm -rf /' } }, { root });
+      assert.equal(output, undefined, event);
+    }
+    assert.equal(run('UserPromptExpansion', { session_id: 'plain', command_name: 'review' }, { root }).output, undefined);
+    assert.equal(run('UserPromptExpansion', { session_id: 'plain', command_name: 'other-plugin:new-project' }, { root }).output, undefined);
+    assert.equal(existsSync(path.join(root, '.crew')), false);
+  });
+
+  it('fails open on bad input', () => {
+    const res = spawnSync(process.execPath, [dispatch, 'PreToolUse'], { input: '{not json', env: cleanEnv(), encoding: 'utf8' });
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout, '');
+    assert.match(res.stderr, /invalid input/);
+  });
+});
+
+describe('crew sessions', () => {
+  it('a crew command writes the session marker and .crew/.gitignore and adds context', () => {
+    const root = tempProject();
+    const output = startCrewSession(root);
+    assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptExpansion');
+    assert.match(output.hookSpecificOutput.additionalContext, /Agent Crew session/);
+    assert.match(output.hookSpecificOutput.additionalContext, /autonomy=full, stack_profile=tanstack, budget_cap_usd=20/);
+    const marker = JSON.parse(readFileSync(path.join(root, '.crew', 'sessions', 'sess-1.json'), 'utf8'));
+    assert.deepEqual({ ...marker, started_at: 'x' }, { session_id: 'sess-1', command: 'agent-crew:new-project', started_at: 'x', assistant: 'claude-code', transcript_path: '/tmp/t.jsonl' });
+    assert.equal(readFileSync(path.join(root, '.crew', '.gitignore'), 'utf8'), 'logs/\nsessions/\n');
+  });
+
+  it('SessionStart reports the phase from status.md', () => {
+    const root = tempProject();
+    startCrewSession(root, 's2');
+    writeFileSync(path.join(root, '.crew', 'status.md'), readFileSync(path.join(golden, 'status.md')));
+    const { output } = run('SessionStart', { session_id: 's2', source: 'resume' }, { root, env: { CLAUDE_PLUGIN_OPTION_AUTONOMY: 'review' } });
+    assert.match(output.hookSpecificOutput.additionalContext, /autonomy=review/);
+    assert.match(output.hookSpecificOutput.additionalContext, /Current phase: tasks — Two of three tasks/);
+  });
+
+  it('PreToolUse denies with a reason and logs a digest, never the raw input', () => {
+    const root = tempProject();
+    startCrewSession(root);
+    const { output } = run('PreToolUse', { session_id: 'sess-1', tool_name: 'Bash', tool_input: { command: 'rm -rf ~/secret-stuff' }, agent_type: 'agent-crew:backend' }, { root });
+    assert.equal(output.hookSpecificOutput.hookEventName, 'PreToolUse');
+    assert.equal(output.hookSpecificOutput.permissionDecision, 'deny');
+    assert.match(output.hookSpecificOutput.permissionDecisionReason, /^Blocked by the agent-crew policy: rm target "~\/secret-stuff" is outside the project/);
+    const log = readFileSync(path.join(root, '.crew', 'logs', 'hooks.jsonl'), 'utf8');
+    assert.doesNotMatch(log, /rm -rf/);
+    const [entry] = readJsonLines(path.join(root, '.crew', 'logs', 'hooks.jsonl'));
+    assert.equal(entry.decision, 'deny');
+    assert.equal(entry.tool, 'Bash');
+    assert.equal(entry.agent_type, 'agent-crew:backend');
+    assert.match(entry.input_digest, /^[0-9a-f]{24}$/);
+  });
+
+  it('PreToolUse allows zone writes, stays silent on undecided commands and honours CREW_HOST', () => {
+    const root = tempProject();
+    startCrewSession(root);
+    const allow = run('PreToolUse', { session_id: 'sess-1', tool_name: 'Write', tool_input: { file_path: 'src/routes/index.tsx', content: 'x' }, agent_type: 'agent-crew:frontend' }, { root });
+    assert.equal(allow.output.hookSpecificOutput.permissionDecision, 'allow');
+    const none = run('PreToolUse', { session_id: 'sess-1', tool_name: 'Bash', tool_input: { command: 'python3 x.py' } }, { root });
+    assert.equal(none.output, undefined);
+    // Every tool call is logged (SPEC §9), even ones the policy has no opinion on.
+    const read = run('PreToolUse', { session_id: 'sess-1', tool_name: 'WebFetch', tool_input: { url: 'https://tanstack.com/start' } }, { root });
+    assert.equal(read.output, undefined);
+    // An eval/SDK host has no marker but sets CREW_HOST.
+    const host = run('PreToolUse', { session_id: 'no-marker', tool_name: 'Bash', tool_input: { command: 'git push --force' } }, { root, env: { CREW_HOST: 'eval' } });
+    assert.equal(host.output.hookSpecificOutput.permissionDecision, 'deny');
+    const log = readJsonLines(path.join(root, '.crew', 'logs', 'hooks.jsonl'));
+    assert.deepEqual(log.map((e) => `${e.tool}:${e.decision}`), ['Write:allow', 'Bash:none', 'WebFetch:none', 'Bash:deny']);
+  });
+
+  it('PostToolUse blocks contract violations in .crew/ and journals edits elsewhere', () => {
+    const root = tempProject();
+    startCrewSession(root);
+    mkdirSync(path.join(root, '.crew', 'tasks'), { recursive: true });
+    const bad = path.join(root, '.crew', 'tasks', 'T-001-login.md');
+    writeFileSync(bad, '---\nid: T-1\nstatus: whatever\n---\n# Login\n');
+    const { output } = run('PostToolUse', { session_id: 'sess-1', tool_name: 'Write', tool_input: { file_path: bad, content: '' } }, { root });
+    assert.equal(output.decision, 'block');
+    assert.match(output.reason, /^\.crew\/tasks\/T-001-login\.md does not match the \.crew\/ contract:/);
+    assert.match(output.reason, /crew` CLI/);
+
+    writeFileSync(bad, readFileSync(path.join(golden, 'tasks', 'T-001.md')));
+    assert.equal(run('PostToolUse', { session_id: 'sess-1', tool_name: 'Write', tool_input: { file_path: bad } }, { root }).output, undefined);
+
+    const edit = run('PostToolUse', { session_id: 'sess-1', tool_name: 'Edit', agent_type: 'agent-crew:frontend', tool_input: { file_path: 'src/a.ts', old_string: 'let a = 1', new_string: 'let a = 2' } }, { root });
+    assert.equal(edit.output, undefined);
+    const [entry] = readJsonLines(path.join(root, '.crew', 'logs', 'edits.jsonl'));
+    assert.equal(entry.file, 'src/a.ts');
+    assert.equal(entry.agent_type, 'agent-crew:frontend');
+    assert.notEqual(entry.before, entry.after);
+    assert.doesNotMatch(JSON.stringify(entry), /let a/);
+  });
+
+  it('SubagentStop appends a cost estimate from the subagent transcript', () => {
+    const root = tempProject();
+    startCrewSession(root);
+    const transcript = path.join(root, 'agent.jsonl');
+    const usage = { input_tokens: 1000, output_tokens: 2000, cache_read_input_tokens: 10000, cache_creation_input_tokens: 400 };
+    writeFileSync(
+      transcript,
+      [
+        { type: 'user', message: { role: 'user', content: 'Work on T-007: booking form' } },
+        { type: 'assistant', message: { id: 'm1', model: 'claude-sonnet-5-5', usage } },
+        { type: 'assistant', message: { id: 'm1', model: 'claude-sonnet-5-5', usage } },
+        { type: 'assistant', message: { id: 'm2', model: 'claude-sonnet-5-5', usage: { input_tokens: 10, output_tokens: 20 } } },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join('\n'),
+    );
+    const { output } = run('SubagentStop', { session_id: 'sess-1', agent_type: 'agent-crew:frontend', agent_transcript_path: transcript }, { root });
+    assert.equal(output, undefined);
+    const [entry] = readJsonLines(path.join(root, '.crew', 'costs.log'));
+    assert.equal(entry.source, 'estimate');
+    assert.equal(entry.task, 'T-007');
+    assert.equal(entry.agent, 'frontend');
+    assert.equal(entry.model, 'claude-sonnet-5-5');
+    assert.deepEqual(entry.tokens, { input: 1010, output: 2020, cache_read: 10000, cache_write: 400 });
+    // Sonnet 5.5: $2 in, $10 out, $0.20 cache read, cache write 1.25 × input
+    const expected = (1010 * 2 + 2020 * 10 + 10000 * 0.2 + 400 * 2.5) / 1e6;
+    assert.ok(Math.abs(entry.turn_cost_usd - expected) < 1e-9, `${entry.turn_cost_usd} vs ${expected}`);
+  });
+});
