@@ -136,8 +136,11 @@ describe('crew sessions', () => {
     // An eval/SDK host has no marker but sets CREW_HOST.
     const host = run('PreToolUse', { session_id: 'no-marker', tool_name: 'Bash', tool_input: { command: 'git push --force' } }, { root, env: { CREW_HOST: 'eval' } });
     assert.equal(host.output.hookSpecificOutput.permissionDecision, 'deny');
+    // Under `claude plugin eval` only EVAL_* variables reach the session.
+    const evalHost = run('PreToolUse', { session_id: 'no-marker', tool_name: 'Bash', tool_input: { command: 'git push --force' } }, { root, env: { EVAL_CREW_HOST: '1' } });
+    assert.equal(evalHost.output.hookSpecificOutput.permissionDecision, 'deny');
     const log = readJsonLines(path.join(root, '.crew', 'logs', 'hooks.jsonl'));
-    assert.deepEqual(log.map((e) => `${e.tool}:${e.decision}`), ['Write:allow', 'Bash:none', 'WebFetch:none', 'Bash:deny']);
+    assert.deepEqual(log.map((e) => `${e.tool}:${e.decision}`), ['Write:allow', 'Bash:none', 'WebFetch:none', 'Bash:deny', 'Bash:deny']);
   });
 
   it('PostToolUse blocks contract violations in .crew/ and journals edits elsewhere', () => {

@@ -1,0 +1,3 @@
+{"ts":"2026-09-29T11:40:00Z","source":"estimate","session_id":"1b2c3d4e-0000-4000-8000-000000000001","task":"T-001","agent":"db","model":"sonnet","tokens":{"input":42000,"output":6100,"cache_read":120000}}
+{"ts":"2026-09-29T12:20:00Z","source":"estimate","session_id":"1b2c3d4e-0000-4000-8000-000000000001","task":"T-002","agent":"frontend","model":"sonnet","tokens":{"input":51000,"output":9000},"turn_cost_usd":1.1}
+{"ts":"2026-09-29T12:30:00Z","source":"headless","session_id":"1b2c3d4e-0000-4000-8000-000000000001","turn_cost_usd":3.2,"session_total_usd":3.2}

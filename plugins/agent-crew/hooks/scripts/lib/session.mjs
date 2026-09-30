@@ -10,9 +10,12 @@ export function markerPath(root, sessionId) {
   return path.join(root, '.crew', 'sessions', `${String(sessionId).replace(/[^\w.-]/g, '_')}.json`);
 }
 
-/** A crew host (eval runner, SDK) sets CREW_HOST; otherwise the session needs a marker. */
+/**
+ * A crew host (eval runner, SDK) sets CREW_HOST — or EVAL_CREW_HOST under `claude plugin eval`,
+ * which passes only EVAL_* variables; otherwise the session needs a marker.
+ */
 export function isCrewSession(input, env, root) {
-  if (env.CREW_HOST && env.CREW_HOST.trim() !== '') return true;
+  if ((env.CREW_HOST ?? env.EVAL_CREW_HOST ?? '').trim() !== '') return true;
   if (!input.session_id) return false;
   return existsSync(markerPath(root, input.session_id));
 }

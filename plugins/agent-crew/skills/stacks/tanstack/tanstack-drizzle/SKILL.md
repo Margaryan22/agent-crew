@@ -105,4 +105,12 @@ try {
 ```
 
 - Never build SQL from strings; raw fragments go through `sql\`…${value}\`` which parameterises values.
+- **Correlated subqueries**: in a single-table select Drizzle renders `${products.id}` as a bare `"id"`, which a subquery reads as its own table's column. Write the outer column with its table name:
+
+```ts
+const stock = sql<number>`coalesce((select sum(m.quantity) from movements m where m.product_id = "products"."id"), 0)`.mapWith(Number)
+const rows = await db.select({ id: products.id, name: products.name, stock }).from(products)
+```
+
+  Or use a join with `groupBy` instead of a subquery.
 - Aggregates (`count`, `sum`, `date_trunc`): see `tanstack-reports`.

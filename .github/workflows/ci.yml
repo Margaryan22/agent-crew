@@ -60,8 +60,8 @@ jobs:
         with:
           node-version: 22
       # No dependencies: hooks and the crew CLI use only Node built-ins and the committed contract bundle.
-      - name: Hook, CLI and content tests
-        run: node --test 'plugins/agent-crew/hooks/test/*.test.mjs' 'plugins/agent-crew/cli/test/*.test.mjs' 'plugins/agent-crew/test/*.test.mjs'
+      - name: Hook, CLI, content and eval-runner tests
+        run: node --test 'plugins/agent-crew/hooks/test/*.test.mjs' 'plugins/agent-crew/cli/test/*.test.mjs' 'plugins/agent-crew/test/*.test.mjs' 'evals/runner/test/*.test.mjs'
 
   template:
     name: tanstack template
