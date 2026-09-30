@@ -1,25 +1,97 @@
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs\" SessionStart", "timeout": 20 }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs",
+              "SessionStart"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
     ],
     "UserPromptExpansion": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs\" UserPromptExpansion", "timeout": 20 }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs",
+              "UserPromptExpansion"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "^agent-crew:",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs",
+              "SubagentStart"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
     ],
     "PreToolUse": [
       {
         "matcher": "*",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs\" PreToolUse", "timeout": 30 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs",
+              "PreToolUse"
+            ],
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs\" PostToolUse", "timeout": 20 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs",
+              "PostToolUse"
+            ],
+            "timeout": 20
+          }
+        ]
       }
     ],
     "SubagentStop": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs\" SubagentStop", "timeout": 20 }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs",
+              "SubagentStop"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
     ]
   }
 }

@@ -34,6 +34,14 @@
       "type": "string",
       "pattern": "^[\\w.:[\\]-]+$"
     },
+    "ladder": {
+      "type": "string",
+      "enum": [
+        "retry",
+        "stronger_model",
+        "replan"
+      ]
+    },
     "last_error_hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{12}$"

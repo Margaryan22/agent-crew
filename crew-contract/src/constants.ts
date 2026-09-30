@@ -23,6 +23,8 @@ export const CREW_PATHS = {
   tasks: '.crew/tasks',
   escalations: '.crew/escalations',
   decisions: '.crew/decisions',
+  /** Free-form review notes from QA and security (T-003-qa.md, architecture-security.md). */
+  reviews: '.crew/reviews',
   sessions: '.crew/sessions',
   logs: '.crew/logs',
   hooksLog: '.crew/logs/hooks.jsonl',

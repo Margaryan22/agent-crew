@@ -27,6 +27,8 @@ const OneLine = (max: number) =>
 
 export const TaskStatus = z.enum(['todo', 'in_progress', 'review', 'done', 'blocked']);
 export const ReviewStage = z.enum(['qa', 'security']);
+/** Rung of the SPEC §8 escalation ladder a task is on; the last rung is an escalation (status: blocked). */
+export const LadderRung = z.enum(['retry', 'stronger_model', 'replan']);
 export const EscalationKind = z.enum(['stuck', 'access', 'question', 'permission', 'brief-review']);
 export const StuckReason = z.enum(['attempts_exceeded', 'repeated_error', 'pm_critic_deadlock', 'edit_flipflop', 'task_budget']);
 export const EscalationStatus = z.enum(['open', 'answered', 'resolved', 'cancelled']);
@@ -55,6 +57,7 @@ export const TaskSchema = z
     owner: AgentName,
     attempts: z.number().int().min(0),
     model: ModelRef.optional(),
+    ladder: LadderRung.optional(),
     last_error_hash: z
       .string()
       .regex(/^[0-9a-f]{12}$/)
@@ -176,6 +179,11 @@ export const CrewManifestSchema = z.looseObject({
   plugin: z.object({ name: z.string().min(1), version: z.string().min(1) }),
   stack_profile: z.string().min(1),
   created_at: DateTime,
+  /** BCP 47 tag of the language user-facing artefacts are written in (brief, escalations, report). */
+  language: z
+    .string()
+    .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, 'expected a language tag like ru or en-GB')
+    .optional(),
 });
 export type CrewManifest = z.infer<typeof CrewManifestSchema>;
 

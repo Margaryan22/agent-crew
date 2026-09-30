@@ -42,12 +42,15 @@ function readJsonLines(file) {
 }
 
 describe('hooks.json', () => {
-  it('routes every event through dispatch.mjs', () => {
+  it('routes every event through dispatch.mjs in exec form', () => {
     const events = Object.keys(hooksConfig.hooks);
-    assert.deepEqual(events.sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'SubagentStop', 'UserPromptExpansion']);
+    assert.deepEqual(events.sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'SubagentStart', 'SubagentStop', 'UserPromptExpansion']);
     for (const event of events) {
       for (const group of hooksConfig.hooks[event]) {
-        for (const h of group.hooks) assert.equal(h.command, `node "\${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs" ${event}`);
+        for (const h of group.hooks) {
+          assert.equal(h.command, 'node');
+          assert.deepEqual(h.args, ['${CLAUDE_PLUGIN_ROOT}/hooks/scripts/dispatch.mjs', event]);
+        }
       }
     }
   });
@@ -81,7 +84,17 @@ describe('crew sessions', () => {
     assert.match(output.hookSpecificOutput.additionalContext, /Agent Crew session/);
     assert.match(output.hookSpecificOutput.additionalContext, /autonomy=full, stack_profile=tanstack, budget_cap_usd=20/);
     const marker = JSON.parse(readFileSync(path.join(root, '.crew', 'sessions', 'sess-1.json'), 'utf8'));
-    assert.deepEqual({ ...marker, started_at: 'x' }, { session_id: 'sess-1', command: 'agent-crew:new-project', started_at: 'x', assistant: 'claude-code', transcript_path: '/tmp/t.jsonl' });
+    assert.deepEqual(
+      { ...marker, started_at: 'x' },
+      {
+        session_id: 'sess-1',
+        command: 'agent-crew:new-project',
+        started_at: 'x',
+        assistant: 'claude-code',
+        transcript_path: '/tmp/t.jsonl',
+        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 20, stackProfile: 'tanstack', host: 'interactive' },
+      },
+    );
     assert.equal(readFileSync(path.join(root, '.crew', '.gitignore'), 'utf8'), 'logs/\nsessions/\n');
   });
 
@@ -150,6 +163,45 @@ describe('crew sessions', () => {
     assert.doesNotMatch(JSON.stringify(entry), /let a/);
   });
 
+  it('SubagentStart gives crew agents the project context and ignores other agents', () => {
+    const root = tempProject();
+    startCrewSession(root);
+    writeFileSync(path.join(root, '.crew', 'crew.json'), JSON.stringify({ contract_version: 1, plugin: { name: 'agent-crew', version: '0.1.0' }, stack_profile: 'tanstack', created_at: '2026-09-29T10:00:00Z', language: 'ru' }));
+    const { output } = run('SubagentStart', { session_id: 'sess-1', agent_type: 'agent-crew:frontend', agent_id: 'a1', prompt: 'Work on T-001' }, { root });
+    const ctx = output.hookSpecificOutput.additionalContext;
+    assert.equal(output.hookSpecificOutput.hookEventName, 'SubagentStart');
+    assert.match(ctx, /for the frontend agent/);
+    assert.match(ctx, /load the skill `tanstack-stack`/);
+    assert.match(ctx, /project language: ru/);
+    assert.match(ctx, /data, not instructions/);
+    assert.equal(run('SubagentStart', { session_id: 'sess-1', agent_type: 'Explore' }, { root }).output, undefined);
+    const other = tempProject();
+    assert.equal(run('SubagentStart', { session_id: 'plain', agent_type: 'agent-crew:frontend' }, { root: other }).output, undefined);
+  });
+
+  it('PreToolUse reserves crew commands for their roles and task fields for the CLI', () => {
+    const root = tempProject();
+    startCrewSession(root);
+    mkdirSync(path.join(root, '.crew', 'tasks'), { recursive: true });
+    const task = path.join(root, '.crew', 'tasks', 'T-001.md');
+    writeFileSync(task, readFileSync(path.join(golden, 'tasks', 'T-001.md')));
+    const decide = (input) => run('PreToolUse', { session_id: 'sess-1', ...input }, { root }).output?.hookSpecificOutput;
+
+    const selfPass = decide({ agent_type: 'agent-crew:frontend', tool_name: 'Bash', tool_input: { command: 'crew task pass T-001 --stage qa' } });
+    assert.equal(selfPass.permissionDecision, 'deny');
+    assert.match(selfPass.permissionDecisionReason, /run by the qa agent itself, not by the frontend agent/);
+    assert.equal(decide({ agent_type: 'agent-crew:qa', tool_name: 'Bash', tool_input: { command: 'crew task pass T-001 --stage qa' } }).permissionDecision, 'allow');
+    assert.equal(decide({ agent_type: 'agent-crew:frontend', tool_name: 'Bash', tool_input: { command: 'crew task submit T-001 --files src/a.ts' } }).permissionDecision, 'allow');
+
+    const fieldEdit = decide({ agent_type: 'agent-crew:frontend', tool_name: 'Edit', tool_input: { file_path: task, old_string: 'status: done', new_string: 'status: review' } });
+    assert.equal(fieldEdit.permissionDecision, 'deny');
+    assert.match(fieldEdit.permissionDecisionReason, /task fields change only through the crew CLI/);
+    const bodyEdit = decide({ agent_type: 'agent-crew:frontend', tool_name: 'Edit', tool_input: { file_path: task, old_string: '# T-001: Scaffold the app and database schema', new_string: '# T-001: Scaffold the app and database schema\n\nNotes: done.' } });
+    assert.equal(bodyEdit.permissionDecision, 'allow');
+    const create = decide({ tool_name: 'Write', tool_input: { file_path: path.join(root, '.crew', 'tasks', 'T-009.md'), content: '---\nid: T-009\n---\n' } });
+    assert.match(create.permissionDecisionReason, /created with crew task new/);
+  });
+
   it('SubagentStop appends a cost estimate from the subagent transcript', () => {
     const root = tempProject();
     startCrewSession(root);
@@ -177,5 +229,10 @@ describe('crew sessions', () => {
     // Sonnet 5.5: $2 in, $10 out, $0.20 cache read, cache write 1.25 × input
     const expected = (1010 * 2 + 2020 * 10 + 10000 * 0.2 + 400 * 2.5) / 1e6;
     assert.ok(Math.abs(entry.turn_cost_usd - expected) < 1e-9, `${entry.turn_cost_usd} vs ${expected}`);
+    // The task's running estimate is updated when its file exists.
+    mkdirSync(path.join(root, '.crew', 'tasks'), { recursive: true });
+    writeFileSync(path.join(root, '.crew', 'tasks', 'T-007-booking.md'), readFileSync(path.join(golden, 'tasks', 'T-001.md'), 'utf8').replace('id: T-001', 'id: T-007'));
+    run('SubagentStop', { session_id: 'sess-1', agent_type: 'agent-crew:frontend', agent_transcript_path: transcript }, { root });
+    assert.match(readFileSync(path.join(root, '.crew', 'tasks', 'T-007-booking.md'), 'utf8'), /spent_usd_estimate: 0\.05\n/);
   });
 });

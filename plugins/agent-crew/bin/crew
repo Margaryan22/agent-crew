@@ -1,0 +1,15 @@
+#!/usr/bin/env node
+// Launcher for the agent-crew CLI (cli/main.mjs). Claude Code puts the plugin's bin/ on the
+// Bash tool's PATH, so agents run it as `crew …`.
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+import(pathToFileURL(path.join(__dirname, '..', 'cli', 'main.mjs')).href)
+  .then(({ main }) => main(process.argv.slice(2)))
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((err) => {
+    process.stderr.write(`crew: ${err && err.stack ? err.stack : String(err)}\n`);
+    process.exitCode = 1;
+  });

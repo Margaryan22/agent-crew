@@ -15,6 +15,8 @@ import { expandHome, isEnvSecretFile, isInside, matchesAny, secretKeysIn, tempDi
  *   checkPackage: (name: string) => Promise<{ ok: boolean, reason?: string }>,
  *   currentBranch: (dir: string) => string | undefined,
  *   home?: string,
+ *   parseFrontmatter?: (text: string) => { data: Record<string, unknown> },
+ *   readFile?: (abs: string) => string | undefined,
  * }} RuleContext
  */
 
@@ -90,7 +92,7 @@ function checkRemoval(cmd, name, cwd, ctx, input) {
   return reasons;
 }
 
-function checkGit(cmd, cwd, ctx) {
+function checkGit(cmd, cwd, ctx, role) {
   const argv = cmd.argv;
   let k = 1;
   let dir = cwd;
@@ -105,7 +107,7 @@ function checkGit(cmd, cwd, ctx) {
       k++;
     }
   }
-  if (argv[k]?.text !== 'push') return [];
+  if (argv[k]?.text !== 'push') return checkGitWorktree(argv.slice(k).map((w) => w.text), role);
   const protectedBranches = ctx.policy.protectedBranches;
   const reasons = [];
   const positional = [];
@@ -146,6 +148,53 @@ function checkGit(cmd, cwd, ctx) {
     if (protectedBranches.includes(t)) reasons.push(`git push ${deleting ? '--delete ' : ''}to ${t} is not allowed; push a feature branch instead`);
   }
   return reasons;
+}
+
+/**
+ * Several agents share one checkout, so git commands that discard, hide or sweep up other
+ * agents' uncommitted work are blocked (git-process skill). Branch changes and staging
+ * everything are left to the orchestrator.
+ */
+function checkGitWorktree(args, role) {
+  const [sub, ...rest] = args;
+  const has = (...flags) => rest.some((t) => flags.includes(t));
+  const shortHas = (letter) => rest.some((t) => /^-[a-zA-Z]+$/.test(t) && t.includes(letter));
+  const lead = role === 'orchestrator';
+  const others = "other agents' uncommitted work in this checkout";
+  switch (sub) {
+    case 'stash':
+      return ['list', 'show'].includes(rest[0]) ? [] : [`git stash would hide ${others}`];
+    case 'reset':
+      return has('--hard', '--merge', '--keep') ? [`git reset ${rest.find((t) => ['--hard', '--merge', '--keep'].includes(t))} would discard ${others}`] : [];
+    case 'clean':
+      return has('-n', '--dry-run') ? [] : [`git clean would delete ${others}`];
+    case 'restore':
+      return has('--staged', '-S') && !has('--worktree', '-W') ? [] : [`git restore would discard ${others}; commit or fix files instead`];
+    case 'checkout':
+      if (has('--', '.', '-f', '--force', '-p', '--patch') || rest.some((t) => t.startsWith(':'))) return [`git checkout of files would discard ${others}`];
+      return lead ? [] : ['only the orchestrator switches branches (git-process skill)'];
+    case 'switch':
+      return lead ? [] : ['only the orchestrator switches branches (git-process skill)'];
+    case 'branch':
+      return lead || !(has('-d', '-D', '--delete', '-m', '-M', '--move', '-c', '-C', '--copy', '-f', '--force') || rest.some((t) => !t.startsWith('-'))) ? [] : ['only the orchestrator creates, renames or deletes branches'];
+    case 'add':
+      return lead || !(has('-A', '--all', '-u', '--update', '.', ':/', '*') || shortHas('A') || shortHas('u')) ? [] : [`stage only your task's files by path (git add -- <files>); git add ${rest.join(' ')} would sweep up ${others}`];
+    case 'commit': {
+      const reasons = [];
+      if (has('--amend')) reasons.push('git commit --amend is not allowed: HEAD may be another agent\'s commit; make a new commit');
+      if (has('--no-verify') || shortHas('n')) reasons.push("don't bypass the project's commit hooks with --no-verify");
+      if (!lead && (has('--all') || shortHas('a'))) reasons.push(`git commit -a would commit ${others}; stage your files by path`);
+      return reasons;
+    }
+    case 'rebase':
+    case 'filter-branch':
+    case 'filter-repo':
+      return [`git ${sub} rewrites history; crew runs never rewrite history`];
+    case 'worktree':
+      return lead || ['list'].includes(rest[0]) ? [] : ['only the orchestrator manages worktrees'];
+    default:
+      return [];
+  }
 }
 
 const CURL_VALUE_FLAGS = new Set([
@@ -356,6 +405,25 @@ function checkWriteTargets(cmd, name, cwd, ctx, input) {
   return { reasons, unresolved };
 }
 
+/**
+ * State-changing `crew` commands are reserved for the roles that own them (policy.crewCommands),
+ * so an executor can't pass its own review or rewrite the plan.
+ */
+function checkCrewCommand(argvText, role, policy) {
+  const table = policy.crewCommands ?? {};
+  const words = argvText.slice(1).filter((w) => !w.startsWith('-'));
+  const two = `${words[0]} ${words[1]}`;
+  const key = Array.isArray(table[two]) ? two : Array.isArray(table[words[0]]) ? words[0] : undefined;
+  if (!key) return [];
+  const allowed = table[key];
+  if (allowed.includes('$stage')) {
+    const k = argvText.findIndex((w) => w === '--stage' || w.startsWith('--stage='));
+    const stage = k < 0 ? undefined : argvText[k].includes('=') ? argvText[k].split('=')[1] : argvText[k + 1];
+    return stage && stage === role ? [] : [`crew ${key} --stage ${stage ?? '…'} is run by the ${stage ?? 'reviewing'} agent itself, not by the ${role} agent`];
+  }
+  return allowed.includes(role) ? [] : [`crew ${key} is reserved for the ${allowed.join(' and ')} agent${allowed.length > 1 ? 's' : ''}; the ${role} agent can't run it`];
+}
+
 function matchesSafe(argvText, policy) {
   return policy.safeCommands.some((prefix) => prefix.every((p, idx) => (idx === 0 ? basename(argvText[0]) === p : argvText[idx] === p)));
 }
@@ -389,11 +457,57 @@ function evaluateWrite(tool, toolInput, role, cwd, ctx, input) {
     const keys = secretKeysIn(text);
     if (keys.length) reasons.push(`${rel} would contain real secrets (${keys.join(', ')}). Write placeholders and list what is needed in .crew/access-checklist.md`);
   }
+  reasons.push(...checkCrewFields(tool, toolInput, abs, rel, ctx));
   const zones = zonesFor(role, ctx.policy);
   if (!matchesAny(rel, zones)) {
     reasons.push(`the ${role} agent may only write ${zones.length ? zones.join(', ') : 'nothing in the project'} — ${rel} is outside that zone. Hand this change to the agent that owns it.`);
   }
   return reasons.length ? { decision: 'deny', reasons, role } : { decision: 'allow', reasons: [`${rel} is inside the ${role} zone`], role };
+}
+
+const CLI_OWNED = /^\.crew\/(tasks|escalations)\/[^/]+\.md$/i;
+
+/** The file text after a Write/Edit/MultiEdit, or undefined when it can't be predicted. */
+function proposedText(tool, toolInput, current) {
+  if (tool === 'Write') return String(toolInput.content ?? '');
+  const edits = tool === 'Edit' ? [toolInput] : tool === 'MultiEdit' ? (toolInput.edits ?? []) : undefined;
+  if (!edits || current === undefined) return undefined;
+  let text = current;
+  for (const e of edits) {
+    if (typeof e?.old_string !== 'string' || typeof e?.new_string !== 'string' || !text.includes(e.old_string)) return undefined;
+    text = e.replace_all ? text.split(e.old_string).join(e.new_string) : text.replace(e.old_string, () => e.new_string);
+  }
+  return text;
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${stableJson(value[k])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+
+/**
+ * Task and escalation frontmatter belongs to the crew CLI (PLAN.md §1.1): agents may edit the
+ * body of these files, but creating them or changing their fields goes through `crew`.
+ */
+function checkCrewFields(tool, toolInput, abs, rel, ctx) {
+  const m = CLI_OWNED.exec(rel);
+  if (!m || !ctx.parseFrontmatter || !ctx.readFile) return [];
+  const kind = m[1] === 'tasks' ? 'task' : 'escalation';
+  const current = ctx.readFile(abs);
+  if (current === undefined) {
+    return [`new ${kind} files are created with ${kind === 'task' ? 'crew task new' : 'crew escalate'}, which allocates the id and writes valid fields`];
+  }
+  const next = proposedText(tool, toolInput, current);
+  if (next === undefined) return [];
+  const before = stableJson(ctx.parseFrontmatter(current).data);
+  const after = stableJson(ctx.parseFrontmatter(next).data);
+  if (before === after) return [];
+  return [
+    kind === 'task'
+      ? `task fields change only through the crew CLI (crew task start | submit | pass | reject | fail, or crew task set for the orchestrator); edit only the text below the frontmatter`
+      : `escalation fields change only through the crew CLI (crew escalation answer | resolve | cancel); edit only the text below the frontmatter`,
+  ];
 }
 
 async function evaluateBash(command, role, startCwd, ctx, input) {
@@ -444,7 +558,7 @@ async function evaluateBash(command, role, startCwd, ctx, input) {
       reasons.push(...checkRemoval(cmd, name, cwd, ctx, input));
       safeHere = false;
     } else if (name === 'git') {
-      reasons.push(...checkGit(cmd, cwd, ctx));
+      reasons.push(...checkGit(cmd, cwd, ctx, role));
     } else if (name === 'curl' || name === 'wget') {
       reasons.push(...checkNetwork(cmd, name, ctx));
       safeHere = false;
@@ -455,6 +569,8 @@ async function evaluateBash(command, role, startCwd, ctx, input) {
       safeHere = safeHere || vetted;
     } else if (SHELLS.has(name) && cmd.argv.length === 1) {
       reasons.push(`piping commands into ${name} is not allowed; run the commands directly`);
+    } else if (name === 'crew') {
+      reasons.push(...checkCrewCommand(argvText, role, ctx.policy));
     }
     if (WRITE_COMMANDS.has(name)) {
       const writes = checkWriteTargets(cmd, name, cwd, ctx, input);

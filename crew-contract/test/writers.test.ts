@@ -43,7 +43,8 @@ describe('renderers produce files that validate strictly', () => {
   it('decision, status, manifest and session marker', () => {
     expect(validateCrewFile('.crew/decisions/ADR-009-x.md', renderDecision({ id: 'ADR-009', title: 'X', status: 'accepted', date: '2026-09-29', source: 'E-001' }, ''))?.ok).toBe(true);
     expect(validateCrewFile('.crew/status.md', renderStatus({ phase: 'tasks', updated_at: at, summary: 'Busy.' }, '# Status\n'))?.ok).toBe(true);
-    expect(validateCrewFile('.crew/crew.json', renderManifest({ contract_version: 1, plugin: { name: 'agent-crew', version: '0.1.0' }, stack_profile: 'tanstack', created_at: at }))?.ok).toBe(true);
+    expect(validateCrewFile('.crew/crew.json', renderManifest({ contract_version: 1, plugin: { name: 'agent-crew', version: '0.1.0' }, stack_profile: 'tanstack', created_at: at, language: 'ru' }))?.ok).toBe(true);
+    expect(validateCrewFile('.crew/crew.json', JSON.stringify({ contract_version: 1, plugin: { name: 'agent-crew', version: '0.1.0' }, stack_profile: 'tanstack', created_at: at, language: 'Russian' }))?.issues.join()).toContain('language');
     expect(validateCrewFile('.crew/sessions/abc.json', renderSessionMarker({ session_id: 'abc', command: 'agent-crew:new-project', started_at: at, assistant: 'claude-code' }))?.ok).toBe(true);
   });
 });

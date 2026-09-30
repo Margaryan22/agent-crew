@@ -27,6 +27,10 @@ function issues(schema: { safeParse(v: unknown): { success: boolean; error?: unk
 }
 
 describe('TaskSchema', () => {
+  it('accepts every ladder rung', () => {
+    for (const ladder of ['retry', 'stronger_model', 'replan']) expect(TaskSchema.safeParse({ ...baseTask, ladder }).success).toBe(true);
+  });
+
   it('accepts a minimal task and keeps unknown keys', () => {
     const parsed = TaskSchema.parse({ ...baseTask, custom: 'x' });
     expect(parsed.custom).toBe('x');
@@ -42,6 +46,7 @@ describe('TaskSchema', () => {
     [{ ...baseTask, depends_on: ['T-001'] }, 'a task cannot depend on itself'],
     [{ ...baseTask, created_at: '29.09.2026' }, 'created_at:'],
     [{ ...baseTask, last_error_hash: 'XYZ' }, 'last_error_hash:'],
+    [{ ...baseTask, ladder: 'panic' }, 'ladder:'],
   ])('rejects %o', (value, message) => {
     expect(issues(TaskSchema, value).join('\n')).toContain(message);
   });

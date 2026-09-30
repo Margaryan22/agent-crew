@@ -311,3 +311,71 @@ describe('package managers (edge cases)', () => {
     await expectDeny(bash('curl http://[bad'), /can't be resolved|not on the allowlist|\[bad/);
   });
 });
+
+describe('crew commands by role', () => {
+  const as = (role) => (role === 'orchestrator' ? {} : { agent_type: `agent-crew:${role}` });
+
+  it('keeps plan, status and decisions with their owners', async () => {
+    await expectNotDenied(bash('crew task set T-001 status=todo', as('orchestrator')), 'allow');
+    await expectDeny(bash('crew task set T-001 status=done', as('frontend')), /crew task set is reserved for the orchestrator agent/);
+    await expectNotDenied(bash('crew task new --title X --owner db', as('architect')), 'allow');
+    await expectDeny(bash('crew task new --title X --owner db', as('qa')), /reserved for the orchestrator and architect agents/);
+    await expectNotDenied(bash('crew status set phase=tasks', as('keeper')), 'allow');
+    await expectDeny(bash('crew init', as('pm')), /crew init is reserved/);
+    await expectNotDenied(bash('crew decision new --title X', as('architect')), 'allow');
+    await expectDeny(bash('crew escalation resolve E-001 --decision ADR-001', as('architect')), /reserved for the orchestrator/);
+  });
+
+  it('lets only the reviewing agent pass or reject its stage', async () => {
+    await expectNotDenied(bash('crew task pass T-001 --stage=security', as('security')), 'allow');
+    await expectDeny(bash('crew task pass T-001 --stage security', as('qa')), /run by the security agent itself, not by the qa agent/);
+    await expectDeny(bash('crew task reject T-001 --error x', as('qa')), /--stage …/);
+    await expectDeny(bash('cd .crew && crew task pass T-001 --stage qa', as('orchestrator')), /not by the orchestrator agent/);
+  });
+
+  it('leaves read-only and executor commands open', async () => {
+    for (const cmd of ['crew next', 'crew task show T-001', 'crew check --json', 'crew task start T-001', 'crew task fail T-001 --error x', 'crew escalate --kind access --question Q --option A --option B --recommended A', 'crew help']) {
+      await expectNotDenied(bash(cmd, as('frontend')), 'allow');
+    }
+  });
+});
+
+describe('git in a shared checkout', () => {
+  const exec = { agent_type: 'agent-crew:backend' };
+
+  it('blocks commands that discard, hide or rewrite work, for everyone', async () => {
+    for (const [cmd, why] of [
+      ['git stash', /would hide/],
+      ['git stash push -m wip', /would hide/],
+      ['git reset --hard HEAD~1', /--hard would discard/],
+      ['git clean -fd', /would delete/],
+      ['git restore src/a.ts', /would discard/],
+      ['git checkout -- src/a.ts', /checkout of files/],
+      ['git checkout .', /checkout of files/],
+      ['git commit --amend --no-edit', /--amend is not allowed/],
+      ['git commit --no-verify -m x', /bypass/],
+      ['git rebase -i HEAD~3', /rewrites history/],
+    ]) {
+      await expectDeny(bash(cmd), why);
+      await expectDeny(bash(cmd, exec), why);
+    }
+  });
+
+  it('keeps branches and bulk staging with the orchestrator', async () => {
+    await expectNotDenied(bash('git switch -c crew/booking'), 'allow');
+    await expectNotDenied(bash('git add -A && git commit -m "chore: scaffold"'), 'allow');
+    await expectDeny(bash('git switch main', exec), /only the orchestrator switches branches/);
+    await expectDeny(bash('git checkout -b mine', exec), /only the orchestrator/);
+    await expectDeny(bash('git branch -D crew/booking', exec), /only the orchestrator/);
+    await expectDeny(bash('git add -A', exec), /stage only your task's files/);
+    await expectDeny(bash('git add .', exec), /stage only/);
+    await expectDeny(bash('git commit -am "T-001: x"', exec), /commit -a would commit/);
+  });
+
+  it('allows the normal executor workflow', async () => {
+    await expectNotDenied(bash('git add -- src/server/bookings.ts src/db/schema.ts && git commit -m "T-003: booking server functions"', exec), 'allow');
+    for (const cmd of ['git status', 'git diff', 'git log --oneline --grep "^T-003:"', 'git show HEAD', 'git branch', 'git branch --show-current', 'git stash list', 'git restore --staged src/a.ts', 'git reset src/a.ts']) {
+      await expectNotDenied(bash(cmd, exec));
+    }
+  });
+});

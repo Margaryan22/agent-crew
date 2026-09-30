@@ -24,6 +24,7 @@ const TASK_KEYS = [
   'owner',
   'attempts',
   'model',
+  'ladder',
   'last_error_hash',
   'review_stage',
   'escalation',
