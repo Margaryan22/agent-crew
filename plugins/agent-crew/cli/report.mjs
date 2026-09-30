@@ -157,20 +157,26 @@ export async function statusSet(project, args, io) {
 // ---------------------------------------------------------------------------
 // next
 
-export function next(project, args, io) {
-  const json = args.bool('json');
-  args.done();
+/** Tasks grouped by what can happen next (shared by `crew next` and the hooks' stop guard). */
+export function nextData(project) {
   const tasks = project.tasks();
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const depsDone = (t) => (t.data.depends_on ?? []).every((d) => byId.get(d)?.data.status === 'done');
-  const groups = {
+  return {
+    tasks,
     ready: tasks.filter((t) => t.data.status === 'todo' && depsDone(t)),
     review: tasks.filter((t) => t.data.status === 'review'),
     in_progress: tasks.filter((t) => t.data.status === 'in_progress'),
     waiting: tasks.filter((t) => t.data.status === 'todo' && !depsDone(t)),
     blocked: tasks.filter((t) => t.data.status === 'blocked'),
+    done: tasks.filter((t) => t.data.status === 'done').length,
   };
-  const done = tasks.filter((t) => t.data.status === 'done').length;
+}
+
+export function next(project, args, io) {
+  const json = args.bool('json');
+  args.done();
+  const { tasks, done, ...groups } = nextData(project);
   if (json) {
     io.json({ ...Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.map((t) => ({ ...t.data, path: t.rel }))])), done, total: tasks.length });
     return;
@@ -331,6 +337,12 @@ export function summaryData(project) {
 export function summary(project, args, io) {
   const json = args.bool('json');
   args.done();
+  if (!project.manifest()) {
+    // .crew/ can exist before crew init (the session hook writes its marker first).
+    if (json) io.json({ initialised: false });
+    else io.log('No crew project in this folder yet (crew init has not run).');
+    return;
+  }
   const s = summaryData(project);
   if (json) {
     io.json(s);

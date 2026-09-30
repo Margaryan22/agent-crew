@@ -69,6 +69,11 @@ describe('help and routing', () => {
     assert.match(await ok(root, ['help']), /Exit codes/);
     await fails(root, ['frobnicate'], 1, /unknown command/);
     await fails(root, ['task', 'list'], 1, /no \.crew\/ folder/);
+    assert.match(await ok(root, ['summary']), /No crew project in this folder yet/);
+    assert.match(await ok(root, ['next']), /No crew project/);
+    mkdirSync(path.join(root, '.crew', 'sessions'), { recursive: true });
+    assert.match(await ok(root, ['summary']), /crew init has not run/);
+    assert.deepEqual(await json(root, ['summary']), { initialised: false });
     await ok(root, ['init']);
     await fails(root, ['task', 'list', '--colour', 'red'], 1, /unknown option: --colour/);
     assert.match(await ok(root, ['task', 'list', '--help']), /crew task new/);

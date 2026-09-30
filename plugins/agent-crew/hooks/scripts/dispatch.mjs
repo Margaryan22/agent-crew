@@ -154,11 +154,28 @@ export async function handle(event, input, env = process.env) {
   if (event === 'SubagentStop') {
     const { subagentCostEntry } = await import('./lib/after.mjs');
     const { loadPolicy } = await import('./lib/policy.mjs');
-    const entry = subagentCostEntry(input, loadPolicy(pluginRoot, config.stackProfile).prices, now);
-    if (!entry) return undefined;
-    await contract.appendJsonLine(path.join(root, '.crew', 'costs.log'), entry).catch(() => undefined);
-    if (entry.task) await updateTaskEstimate(contract, root, entry.task).catch(() => undefined);
-    return undefined;
+    const { unrecordedResult } = await import('./lib/guard.mjs');
+    const cursorFile = path.join(root, '.crew', 'logs', 'cost-cursor.json');
+    let cursor = {};
+    try {
+      cursor = JSON.parse(readFileSync(cursorFile, 'utf8'));
+    } catch {
+      // first subagent of the project
+    }
+    const key = String(input.agent_id ?? input.agent_transcript_path ?? 'unknown');
+    const result = subagentCostEntry(input, loadPolicy(pluginRoot, config.stackProfile).prices, now, cursor[key]);
+    if (result) {
+      cursor[key] = result.totals;
+      await contract.writeFileAtomic(cursorFile, `${JSON.stringify(cursor)}\n`).catch(() => undefined);
+    }
+    if (result?.entry) await contract.appendJsonLine(path.join(root, '.crew', 'costs.log'), result.entry).catch(() => undefined);
+    if (result?.task) await updateTaskEstimate(contract, root, result.task).catch(() => undefined);
+    return unrecordedResult(input, root, env, result?.task);
+  }
+
+  if (event === 'Stop') {
+    const { stopDecision } = await import('./lib/guard.mjs');
+    return stopDecision(input, root, env);
   }
 
   return undefined;

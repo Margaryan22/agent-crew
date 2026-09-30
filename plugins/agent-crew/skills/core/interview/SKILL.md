@@ -23,7 +23,7 @@ Skip a block (or a question) when the idea already answers it — write that ans
 
 ## Question style
 
-- Closed or choice questions with a **suggested answer** the human can accept: "Do clients need an account to book, or is a name and phone enough? (Suggested: name and phone, no account.)"
+- Closed or choice questions with **2–3 short options**, the suggested one first. The orchestrator shows them as choices (the human can always type something else).
 - One decision per question. No jargon — the human is a small-business owner, not a developer.
 - Write the questions in the project language (the language of the idea).
 - Never ask for passwords, API keys or other secrets. Ask *whether* an account exists and put the item in the access checklist.
@@ -35,20 +35,22 @@ Skip a block (or a question) when the idea already answers it — write that ans
 
 ## Users and roles
 
-### Q: Who books appointments — clients themselves, or staff on their behalf? (Suggested: clients book online; the owner can also book by phone.)
+### Q: Who books appointments?
+Options: Clients book online; staff can also book by phone (suggested) | Only staff book | Only clients book
 
-### Q: Which staff roles are there? (Suggested: owner — everything; barber — sees own schedule.)
+### Q: Which staff roles are there?
+Options: Owner (everything) and barbers (own schedule) (suggested) | Owner only
 
 ## Data
 
 ### Q: …
 ```
 
-Answers appear as `A: …` lines under each question. In eval runs the file already has answers — ask only what is missing (`crew interview pending`).
+Options are separated by ` | `, each under 60 characters; keep the keywords `Q:`, `Options:` and `A:` in English whatever the project language, so the crew CLI can read the file. Answers appear as `A: …` lines under each question. In eval runs the file already has answers — ask only what is missing (`crew interview pending`).
 
 ## After the interview
 
-- An unanswered question becomes an **assumption** in the brief (take the suggested answer and mark it "Assumption").
+- An unanswered question becomes an **assumption** in the brief (take the suggested option and mark it "Assumption").
 - Anything the crew needs from the human but cannot create itself — accounts, domains, real data, credentials — goes to `.crew/access-checklist.md`:
 
 ```markdown

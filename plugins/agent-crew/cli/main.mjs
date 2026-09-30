@@ -46,6 +46,7 @@ Add --json to list/show/next/check/budget/summary/new for machine-readable outpu
 Exit codes: 0 ok, 1 usage or contract error, 2 not found, 3 not allowed in the current state.`;
 
 const BOOLEANS = ['json', 'help', 'force'];
+const OVERVIEW = new Set(['summary', 'next', 'budget', 'status show']);
 
 const ROUTES = {
   'task new': tasks.taskNew,
@@ -119,6 +120,11 @@ export async function main(argv, options = {}) {
     const env = options.env ?? process.env;
     const cwd = options.cwd ?? process.cwd();
     const root = route === 'init' ? (findRoot(cwd) ?? cwd) : findRoot(cwd);
+    if (!root && OVERVIEW.has(route)) {
+      // Overviews are also embedded in skills (/status), where a failing command would abort the skill.
+      io.log('No crew project in this folder yet (no .crew/). Start one with /agent-crew:new-project.');
+      return 0;
+    }
     if (!root) throw new UsageError(`no .crew/ folder in ${cwd} or its parents — run crew init in the project root first`);
     const project = new Project(root, { env, now: options.now });
     const code = await ROUTES[route](project, args, io);

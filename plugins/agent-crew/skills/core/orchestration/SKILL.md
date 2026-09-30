@@ -34,7 +34,7 @@ Set the phase with `crew status set phase=<phase> --summary "<one line>"` as you
 
 ### 1. Interview — `phase=interview`
 1. If `.crew/interview.md` already has answers (eval run), skip to step 3.
-2. Delegate to **pm**: "Prepare the interview for this idea: <idea>. Write .crew/interview.md." Then `crew interview pending` and ask the human **one block at a time** with AskUserQuestion (up to 4 questions per call, the suggested answer as the first option, marked "(Recommended)"). Record each answer: `crew interview answer N --text "…"`. When AskUserQuestion is unavailable (headless run) or the human skips, leave the question unanswered.
+2. Delegate to **pm**: "Prepare the interview for this idea: <idea>. Write .crew/interview.md." Then `crew interview pending` and ask the human **one block at a time** with AskUserQuestion: up to 4 questions per call, each question's `Options:` as the choices, the suggested one first with "(Recommended)" added. Record each answer: `crew interview answer N --text "<chosen option or the human's own words>"`. When AskUserQuestion is unavailable (headless run) or the human skips, leave the question unanswered.
 3. Continue — unanswered questions become assumptions in the brief.
 
 ### 2. Brief — `phase=brief`
@@ -95,6 +95,10 @@ If an escalation blocks tasks, keep running every task that does not depend on t
 ## Budget
 
 `crew check` compares spend with `budget_cap_usd` (reported spend when the host reports it, otherwise the plugin's estimate). At 80% prefer finishing started tasks over starting new ones. At 100%: `crew status set phase=stopped stop_reason=budget_cap --summary "…"`, write the report with what is done and what is left, and end the run.
+
+## When you stop
+
+In a crew session the plugin's Stop hook checks `.crew/` when you end your turn: while work can still move (a phase to finish, ready tasks, answered escalations) it tells you what is next instead of letting the run stall. It lets you stop when the run is done or stopped, during the interview, and when only the human can unblock the remaining work. Executors and reviewers get a similar reminder when they finish without recording their result.
 
 ## Resuming
 

@@ -102,18 +102,27 @@ export function estimateUsd(tokens, price) {
   return Math.round(usd * 1e6) / 1e6;
 }
 
-/** Builds the costs.log estimate entry for a finished subagent, or undefined when there is nothing to record. */
-export function subagentCostEntry(input, prices, now) {
+const TOKEN_KEYS = ['input', 'output', 'cache_read', 'cache_write'];
+
+/**
+ * Estimates what a subagent spent since the last time it stopped. A subagent can stop more than
+ * once (a stop hook makes it continue, SendMessage resumes it), and its transcript keeps growing,
+ * so `previous` holds the totals already recorded and only the difference becomes a new entry.
+ * @returns {{ entry?: object, totals: object, task?: string } | undefined}
+ */
+export function subagentCostEntry(input, prices, now, previous) {
   const file = input.agent_transcript_path;
   if (typeof file !== 'string' || !existsSync(file)) return undefined;
   const usage = transcriptUsage(readFileSync(file, 'utf8'));
   if (!usage.messages) return undefined;
-  const price = priceFor(usage.model, prices);
-  const entry = { ts: now, source: 'estimate', session_id: String(input.session_id ?? 'unknown'), tokens: usage.tokens };
+  const tokens = Object.fromEntries(TOKEN_KEYS.map((k) => [k, Math.max(0, usage.tokens[k] - (previous?.[k] ?? 0))]));
+  if (TOKEN_KEYS.every((k) => tokens[k] === 0)) return { totals: usage.tokens, task: usage.task };
+  const entry = { ts: now, source: 'estimate', session_id: String(input.session_id ?? 'unknown'), tokens };
   if (usage.task) entry.task = usage.task;
   if (input.agent_type) entry.agent = String(input.agent_type).split(':').pop();
+  if (input.agent_id) entry.agent_id = String(input.agent_id);
   if (usage.model) entry.model = usage.model;
-  const usd = estimateUsd(usage.tokens, price);
+  const usd = estimateUsd(tokens, priceFor(usage.model, prices));
   if (usd !== undefined) entry.turn_cost_usd = usd;
-  return entry;
+  return { entry, totals: usage.tokens, task: usage.task };
 }

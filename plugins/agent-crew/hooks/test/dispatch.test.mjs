@@ -44,7 +44,7 @@ function readJsonLines(file) {
 describe('hooks.json', () => {
   it('routes every event through dispatch.mjs in exec form', () => {
     const events = Object.keys(hooksConfig.hooks);
-    assert.deepEqual(events.sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'SubagentStart', 'SubagentStop', 'UserPromptExpansion']);
+    assert.deepEqual(events.sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'Stop', 'SubagentStart', 'SubagentStop', 'UserPromptExpansion']);
     for (const event of events) {
       for (const group of hooksConfig.hooks[event]) {
         for (const h of group.hooks) {
@@ -202,6 +202,20 @@ describe('crew sessions', () => {
     assert.match(create.permissionDecisionReason, /created with crew task new/);
   });
 
+  it('Stop keeps the orchestrator going while tasks are ready, and only in crew sessions', () => {
+    const root = tempProject();
+    startCrewSession(root);
+    const bin = path.join(pluginRoot, 'bin', 'crew');
+    for (const argv of [['init'], ['status', 'set', 'phase=tasks'], ['task', 'new', '--title', 'Schema', '--owner', 'db']]) {
+      const r = spawnSync(process.execPath, [bin, ...argv], { cwd: root, encoding: 'utf8' });
+      assert.equal(r.status, 0, r.stderr);
+    }
+    const { output } = run('Stop', { session_id: 'sess-1', stop_hook_active: false }, { root });
+    assert.equal(output.decision, 'block');
+    assert.match(output.reason, /^Agent Crew: tasks can still move \(ready: T-001\)/);
+    assert.equal(run('Stop', { session_id: 'someone-else' }, { root }).output, undefined);
+  });
+
   it('SubagentStop appends a cost estimate from the subagent transcript', () => {
     const root = tempProject();
     startCrewSession(root);
@@ -229,10 +243,18 @@ describe('crew sessions', () => {
     // Sonnet 5.5: $2 in, $10 out, $0.20 cache read, cache write 1.25 × input
     const expected = (1010 * 2 + 2020 * 10 + 10000 * 0.2 + 400 * 2.5) / 1e6;
     assert.ok(Math.abs(entry.turn_cost_usd - expected) < 1e-9, `${entry.turn_cost_usd} vs ${expected}`);
-    // The task's running estimate is updated when its file exists.
+    // Stopping again with the same transcript adds nothing (no double counting), but the task's
+    // running estimate is refreshed once its file exists.
     mkdirSync(path.join(root, '.crew', 'tasks'), { recursive: true });
     writeFileSync(path.join(root, '.crew', 'tasks', 'T-007-booking.md'), readFileSync(path.join(golden, 'tasks', 'T-001.md'), 'utf8').replace('id: T-001', 'id: T-007'));
     run('SubagentStop', { session_id: 'sess-1', agent_type: 'agent-crew:frontend', agent_transcript_path: transcript }, { root });
-    assert.match(readFileSync(path.join(root, '.crew', 'tasks', 'T-007-booking.md'), 'utf8'), /spent_usd_estimate: 0\.05\n/);
+    assert.equal(readJsonLines(path.join(root, '.crew', 'costs.log')).length, 1);
+    assert.match(readFileSync(path.join(root, '.crew', 'tasks', 'T-007-booking.md'), 'utf8'), /spent_usd_estimate: 0\.03\n/);
+    // A resumed subagent: only the new messages are estimated.
+    writeFileSync(transcript, `${readFileSync(transcript, 'utf8')}\n${JSON.stringify({ type: 'assistant', message: { id: 'm3', model: 'claude-sonnet-5-5', usage: { input_tokens: 100, output_tokens: 50 } } })}`);
+    run('SubagentStop', { session_id: 'sess-1', agent_type: 'agent-crew:frontend', agent_transcript_path: transcript }, { root });
+    const entries = readJsonLines(path.join(root, '.crew', 'costs.log'));
+    assert.equal(entries.length, 2);
+    assert.deepEqual(entries[1].tokens, { input: 100, output: 50, cache_read: 0, cache_write: 0 });
   });
 });
