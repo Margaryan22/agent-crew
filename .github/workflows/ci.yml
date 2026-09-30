@@ -114,7 +114,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: extension/package-lock.json
+          cache-dependency-path: |
+            extension/package-lock.json
+            crew-contract/package-lock.json
+      # The extension bundles the .crew/ contract from source (../crew-contract).
+      - run: npm ci --prefix ../crew-contract
       - run: npm ci
       - name: Lint
         run: npm run lint
@@ -123,13 +127,13 @@ jobs:
       - name: Integration tests
         run: xvfb-run -a npm run test:integration
       - name: Integration tests (minimum VS Code version)
-        run: xvfb-run -a npx vscode-test
+        run: node scripts/build-tests.mjs && xvfb-run -a npx vscode-test
         env:
-          VSCODE_TEST_VERSION: '1.90.0'
-      - name: Package (linux-x64)
-        run: node scripts/package.mjs --target linux-x64
+          VSCODE_TEST_VERSION: '1.94.0'
+      - name: Package
+        run: node scripts/package.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: vsix-ci-linux-x64
+          name: vsix-ci
           path: extension/vsix/*.vsix
           retention-days: 7

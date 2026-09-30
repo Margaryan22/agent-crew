@@ -1,96 +1,72 @@
-// Domain types for the .crew/ directory — the single source of truth for project state.
-// The extension only reads these files (and appends escalation answers / cost lines);
-// the agent-crew plugin owns their content.
+// The extension's view of a crew project's .crew/ folder. File formats, readers and writers come
+// from the shared contract (../crew-contract), the same code the agent-crew plugin uses.
 
-export const TASK_STATUSES = ['todo', 'in_progress', 'review', 'done', 'blocked'] as const;
-export type TaskStatus = (typeof TASK_STATUSES)[number];
+import type { ChecklistItem, DecisionView, EscalationView, StatusView, TaskView } from '../../../crew-contract/src/index';
 
-export interface Task {
+export type { ChecklistItem, DecisionView, EscalationView, StatusView, TaskView };
+
+export interface ManifestView {
+  contractVersion?: number;
+  stackProfile?: string;
+  language?: string;
+  pluginVersion?: string;
+}
+
+/** A Claude Code session started by a crew command (.crew/sessions/<id>.json). */
+export interface SessionView {
   id: string;
-  title: string;
-  status: TaskStatus;
-  assignee?: string;
-  attempts: number;
-  /** Git branch the task was implemented on (for "Show Diff"). */
-  branch?: string;
-  /** Branch/commit the task branch started from. */
-  base?: string;
-  files: string[];
-  /** Workspace-relative path, e.g. `.crew/tasks/T-001.md`. */
-  path: string;
+  command: string;
+  startedAt: string;
+  /** Budget cap the plugin resolved for that session, when it recorded one. */
+  capUsd?: number;
 }
 
-export const ESCALATION_STATUSES = ['open', 'answered', 'resolved', 'cancelled'] as const;
-export type EscalationStatus = (typeof ESCALATION_STATUSES)[number];
-
-/**
- * - `question`   — an agent asked the human (AskUserQuestion or a plugin-written file)
- * - `permission` — a tool call not covered by the plugin's hook policy
- * - `brief-review` — the brief is ready for approval (autonomy = review)
- */
-export type EscalationKind = 'question' | 'permission' | 'brief-review';
-
-export interface Escalation {
-  id: string;
-  title: string;
-  question: string;
-  options: string[];
-  status: EscalationStatus;
-  kind: EscalationKind;
-  task?: string;
-  agent?: string;
-  answer?: string;
-  createdAt?: string;
-  path?: string;
-}
-
-export interface Decision {
-  id: string;
-  title: string;
-  status?: string;
-  path: string;
-}
-
-export interface CostEntry {
-  timestamp: string;
-  sessionId?: string;
-  /** Cost of this entry alone (e.g. one turn). */
-  costUsd?: number;
-  /** Running total of the session at this point (Agent SDK `total_cost_usd`). */
-  sessionTotalUsd?: number;
-  source?: string;
-}
-
-export interface ProjectStatus {
-  phase?: string;
-  summary?: string;
+export interface SpendView {
+  /** Dollars: reported by a host (eval runner) when available, otherwise the plugin's estimate. */
+  usedUsd: number;
+  basis: 'reported' | 'estimate';
+  estimatedTokens: number;
 }
 
 export interface CrewSnapshot {
+  /** .crew/ exists (a crew command may have created it before `crew init`). */
   exists: boolean;
-  tasks: Task[];
-  escalations: Escalation[];
-  decisions: Decision[];
-  costs: CostEntry[];
-  status?: ProjectStatus;
-  hasBrief: boolean;
+  /** .crew/crew.json exists. */
+  initialised: boolean;
+  manifest?: ManifestView;
+  status?: StatusView;
+  tasks: TaskView[];
+  escalations: EscalationView[];
+  decisions: DecisionView[];
+  checklist: ChecklistItem[];
+  spend: SpendView;
+  latestSession?: SessionView;
+  files: { brief: boolean; report: boolean; accessChecklist: boolean };
+  /** Things worth telling the user: newer contract, files that break the contract. */
+  problems: string[];
 }
 
 export const EMPTY_SNAPSHOT: CrewSnapshot = {
   exists: false,
+  initialised: false,
   tasks: [],
   escalations: [],
   decisions: [],
-  costs: [],
-  hasBrief: false,
+  checklist: [],
+  spend: { usedUsd: 0, basis: 'estimate', estimatedTokens: 0 },
+  files: { brief: false, report: false, accessChecklist: false },
+  problems: [],
 };
 
-export const CREW_DIR = '.crew';
-export const CREW_PATHS = {
-  tasks: `${CREW_DIR}/tasks`,
-  escalations: `${CREW_DIR}/escalations`,
-  decisions: `${CREW_DIR}/decisions`,
-  costs: `${CREW_DIR}/costs.log`,
-  status: `${CREW_DIR}/status.md`,
-  brief: `${CREW_DIR}/brief.md`,
-} as const;
+export const PHASE_LABELS: Record<string, string> = {
+  interview: 'Interview',
+  brief: 'Brief',
+  architecture: 'Architecture',
+  acceptance_tests: 'Acceptance tests',
+  decomposition: 'Planning',
+  tasks: 'Building',
+  final: 'Final checks',
+  done: 'Done',
+  stopped: 'Stopped',
+  failed: 'Failed',
+};

@@ -1,5 +1,0 @@
-{
-  "name": "agent-crew",
-  "version": "0.0.0-stub",
-  "description": "TEST STUB of the agent-crew plugin. Used only by the extension's tests and local packaging checks — never publish a VSIX built from it."
-}

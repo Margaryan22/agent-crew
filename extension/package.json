@@ -1,8 +1,8 @@
 {
   "name": "agent-crew",
   "displayName": "Agent Crew",
-  "description": "Run a crew of Claude agents from your IDE: chat, live task board, escalations and budget control — no terminal required.",
-  "version": "0.1.0",
+  "description": "A crew of AI agents that builds small-business web apps inside Claude Code, on your own Claude subscription — interview, brief, architecture, tests, reviewed code — with a live view of tasks, questions and spend.",
+  "version": "0.3.0",
   "publisher": "whysargis",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "resources/icon.png",
@@ -20,25 +20,23 @@
   },
   "homepage": "https://github.com/Margaryan22/agent-crew/tree/main/extension#readme",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.94.0"
   },
   "categories": [
     "AI",
-    "Chat",
-    "Programming Languages",
     "Other"
   ],
   "keywords": [
-    "claude",
     "agents",
     "multi-agent",
     "ai",
-    "autonomous",
-    "code generation",
-    "crew",
     "team",
+    "crew",
+    "claude code",
+    "project generator",
     "tanstack",
-    "freelance"
+    "freelance",
+    "small business"
   ],
   "pricing": "Free",
   "extensionKind": [
@@ -47,7 +45,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "Agent Crew runs AI agents that edit files and execute commands in your workspace, so it only works in trusted workspaces."
+      "description": "Agent Crew starts AI agents (through Claude Code) that edit files and run commands in your workspace, so it only works in trusted workspaces."
     },
     "virtualWorkspaces": false
   },
@@ -60,7 +58,7 @@
       "activitybar": [
         {
           "id": "crew",
-          "title": "Crew",
+          "title": "Agent Crew",
           "icon": "resources/crew.svg"
         }
       ]
@@ -68,115 +66,122 @@
     "views": {
       "crew": [
         {
-          "type": "webview",
-          "id": "crew.chat",
-          "name": "Chat"
+          "id": "crew.project",
+          "name": "Project"
         },
         {
           "id": "crew.tasks",
           "name": "Tasks"
-        },
-        {
-          "id": "crew.decisions",
-          "name": "Decisions"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "crew.tasks",
-        "contents": "No tasks yet. The crew creates them in .crew/tasks/ once a project starts.\n[New Project](command:crew.newProject)"
+        "view": "crew.project",
+        "when": "workbenchState == empty",
+        "contents": "Agent Crew builds a small-business web app with a team of AI agents — PM, critic, architect, QA, developers and a security reviewer — inside Claude Code, on your own Claude subscription.\nOpen an empty folder for the new project.\n[Open Folder](command:vscode.openFolder)"
       },
       {
-        "view": "crew.decisions",
-        "contents": "Architecture decisions (.crew/decisions/ADR-*.md) will show up here."
+        "view": "crew.project",
+        "when": "workbenchState != empty && !crew.claudeCodeInstalled",
+        "contents": "Agent Crew runs inside Claude Code, on your own Claude subscription. Install the Claude Code extension and sign in first.\n[Install Claude Code](command:crew.installClaudeCode)\nThen install the Agent Crew plugin into it.\n[Install Plugin](command:crew.installPlugin)"
+      },
+      {
+        "view": "crew.project",
+        "when": "workbenchState != empty && crew.claudeCodeInstalled && !crew.hasProject",
+        "contents": "Describe the tool you need; the crew interviews you, writes a brief, designs, tests and builds it, and asks you only when it must.\n[New Project](command:crew.newProject)\nAlready have a crew-built project here?\n[Add Feature](command:crew.feature)\nFirst time? [Install the plugin](command:crew.installPlugin) · [Check setup](command:crew.checkSetup)"
+      },
+      {
+        "view": "crew.tasks",
+        "contents": "No tasks yet. The crew plans them after the brief and the architecture are done."
       }
     ],
     "commands": [
       {
         "command": "crew.newProject",
         "title": "New Project",
-        "category": "Crew",
+        "category": "Agent Crew",
         "icon": "$(add)"
       },
       {
         "command": "crew.feature",
-        "title": "Feature",
-        "category": "Crew"
+        "title": "Add Feature",
+        "category": "Agent Crew",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "crew.continue",
+        "title": "Continue in Claude Code",
+        "category": "Agent Crew",
+        "icon": "$(comment-discussion)"
       },
       {
         "command": "crew.status",
-        "title": "Status",
-        "category": "Crew"
+        "title": "Show Status",
+        "category": "Agent Crew"
       },
       {
-        "command": "crew.stop",
-        "title": "Stop",
-        "category": "Crew",
-        "icon": "$(debug-stop)"
+        "command": "crew.answerEscalation",
+        "title": "Answer the Crew’s Question",
+        "category": "Agent Crew",
+        "icon": "$(reply)"
       },
       {
-        "command": "crew.resume",
-        "title": "Resume",
-        "category": "Crew",
-        "icon": "$(debug-continue)"
+        "command": "crew.installClaudeCode",
+        "title": "Install Claude Code",
+        "category": "Agent Crew"
       },
       {
-        "command": "crew.setApiKey",
-        "title": "Set API Key",
-        "category": "Crew"
+        "command": "crew.installPlugin",
+        "title": "Install Plugin into Claude Code",
+        "category": "Agent Crew"
       },
       {
-        "command": "crew.clearApiKey",
-        "title": "Clear API Key",
-        "category": "Crew"
+        "command": "crew.checkSetup",
+        "title": "Check Setup",
+        "category": "Agent Crew"
       },
       {
         "command": "crew.openBrief",
         "title": "Open Brief",
-        "category": "Crew"
+        "category": "Agent Crew"
       },
       {
         "command": "crew.openStatus",
-        "title": "Open Status",
-        "category": "Crew"
+        "title": "Open Status File",
+        "category": "Agent Crew"
       },
       {
-        "command": "crew.enterLicense",
-        "title": "Enter License",
-        "category": "Crew"
+        "command": "crew.openReport",
+        "title": "Open Report",
+        "category": "Agent Crew"
       },
       {
-        "command": "crew.checkDependencies",
-        "title": "Check Dependencies",
-        "category": "Crew"
-      },
-      {
-        "command": "crew.newProjectDemo",
-        "title": "Start Demo Project",
-        "category": "Crew"
-      },
-      {
-        "command": "crew.showOutput",
-        "title": "Show Log",
-        "category": "Crew"
+        "command": "crew.openAccessChecklist",
+        "title": "Open Access Checklist",
+        "category": "Agent Crew"
       },
       {
         "command": "crew.openTask",
         "title": "Open Task",
-        "category": "Crew"
+        "category": "Agent Crew"
       },
       {
         "command": "crew.showTaskDiff",
         "title": "Show Diff",
-        "category": "Crew",
+        "category": "Agent Crew",
         "icon": "$(diff)"
       },
       {
         "command": "crew.refresh",
         "title": "Refresh",
-        "category": "Crew",
+        "category": "Agent Crew",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "crew.showOutput",
+        "title": "Show Log",
+        "category": "Agent Crew"
       }
     ],
     "menus": {
@@ -190,33 +195,38 @@
           "when": "false"
         },
         {
-          "command": "crew.enterLicense",
-          "when": "crew.licenseEnabled"
+          "command": "crew.continue",
+          "when": "crew.hasSession"
         }
       ],
       "view/title": [
         {
           "command": "crew.newProject",
-          "when": "view == crew.chat && !crew.sessionActive",
+          "when": "view == crew.project && !crew.hasProject",
           "group": "navigation@1"
         },
         {
-          "command": "crew.stop",
-          "when": "view == crew.chat && crew.sessionActive",
-          "group": "navigation@1"
-        },
-        {
-          "command": "crew.resume",
-          "when": "view == crew.chat && !crew.sessionActive && crew.canResume",
+          "command": "crew.feature",
+          "when": "view == crew.project && crew.hasProject",
           "group": "navigation@2"
         },
         {
+          "command": "crew.continue",
+          "when": "view == crew.project && crew.hasSession",
+          "group": "navigation@3"
+        },
+        {
           "command": "crew.refresh",
-          "when": "view == crew.tasks || view == crew.decisions",
-          "group": "navigation"
+          "when": "view == crew.project || view == crew.tasks",
+          "group": "navigation@9"
         }
       ],
       "view/item/context": [
+        {
+          "command": "crew.answerEscalation",
+          "when": "view == crew.project && viewItem == crewEscalation",
+          "group": "inline"
+        },
         {
           "command": "crew.showTaskDiff",
           "when": "view == crew.tasks && viewItem == crewTask",
@@ -229,105 +239,54 @@
         }
       ]
     },
-    "configuration": {
-      "title": "Agent Crew",
-      "properties": {
-        "crew.budgetCapUsd": {
-          "type": "number",
-          "default": 20,
-          "minimum": 0,
-          "markdownDescription": "Spending cap for the project in USD (sum of all sessions recorded in `.crew/costs.log`). A warning is shown at 80%; at 100% the running session is stopped.",
-          "scope": "resource"
-        },
-        "crew.stackProfile": {
-          "type": "string",
-          "enum": [
-            "tanstack"
-          ],
-          "enumDescriptions": [
-            "TanStack Start + TypeScript conventions"
-          ],
-          "default": "tanstack",
-          "description": "Stack profile the crew follows when generating code.",
-          "scope": "resource"
-        },
-        "crew.autonomy": {
-          "type": "string",
-          "enum": [
-            "full",
-            "review"
-          ],
-          "enumDescriptions": [
-            "The crew works on its own and only stops for escalations.",
-            "The crew shows you the brief and waits up to `crew.briefReviewMinutes` for your approval before building."
-          ],
-          "default": "full",
-          "description": "How much the crew checks in with you.",
-          "scope": "resource"
-        },
-        "crew.briefReviewMinutes": {
-          "type": "number",
-          "default": 10,
-          "minimum": 1,
-          "maximum": 240,
-          "markdownDescription": "In `review` autonomy: how many minutes to wait for your brief approval before the crew continues automatically.",
-          "scope": "resource"
-        },
-        "crew.telemetry.enabled": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Send anonymous aggregate usage data (session duration, task and escalation counts, total cost, error kinds). Never includes code or prompts. Only active while VS Code telemetry (`telemetry.telemetryLevel`) is enabled too.",
-          "tags": [
-            "telemetry",
-            "usesOnlineServices"
-          ],
-          "scope": "application"
-        },
-        "crew.claudeCodePath": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Optional path to a Claude Code executable. Leave empty to use the binary bundled with the extension.",
-          "scope": "machine"
-        }
-      }
-    },
     "walkthroughs": [
       {
         "id": "crew.gettingStarted",
         "title": "Get started with Agent Crew",
-        "description": "Connect your Anthropic API key, check dependencies and launch your first crew.",
+        "description": "Set up Claude Code and the Agent Crew plugin, check your tools, and start your first project.",
         "steps": [
           {
-            "id": "crew.walkthrough.apiKey",
-            "title": "Add your Anthropic API key",
-            "description": "The crew calls Claude with your own key. It is stored in the OS keychain via VS Code SecretStorage — never in settings or logs.\n[Set API Key](command:crew.setApiKey)",
+            "id": "crew.walkthrough.claudeCode",
+            "title": "Install Claude Code and sign in",
+            "description": "The crew runs inside the official Claude Code extension, on your own Claude subscription (or API key). Agent Crew never sees your credentials.\n[Install Claude Code](command:crew.installClaudeCode)",
             "media": {
-              "markdown": "resources/walkthrough/api-key.md"
+              "markdown": "resources/walkthrough/claude-code.md"
             },
             "completionEvents": [
-              "onContext:crew.hasApiKey"
+              "onContext:crew.claudeCodeInstalled"
             ]
           },
           {
-            "id": "crew.walkthrough.dependencies",
-            "title": "Check dependencies",
-            "description": "Verifies the bundled Claude Code runtime, the agent-crew plugin, git and workspace trust.\n[Check Dependencies](command:crew.checkDependencies)",
+            "id": "crew.walkthrough.plugin",
+            "title": "Install the Agent Crew plugin",
+            "description": "Claude Code opens its plugin dialog; confirm the install there. You need to do this once.\n[Install Plugin](command:crew.installPlugin)",
             "media": {
-              "markdown": "resources/walkthrough/dependencies.md"
+              "markdown": "resources/walkthrough/plugin.md"
             },
             "completionEvents": [
-              "onContext:crew.dependenciesOk"
+              "onContext:crew.pluginInstalled",
+              "onCommand:crew.installPlugin"
             ]
           },
           {
-            "id": "crew.walkthrough.firstProject",
-            "title": "Run your first project",
-            "description": "Start /new-project on a small demo idea and watch the task board fill up.\n[Start Demo Project](command:crew.newProjectDemo)",
+            "id": "crew.walkthrough.tools",
+            "title": "Check Node.js, git and Docker",
+            "description": "Generated projects are TanStack Start apps with PostgreSQL in Docker.\n[Check Setup](command:crew.checkSetup)",
+            "media": {
+              "markdown": "resources/walkthrough/tools.md"
+            },
+            "completionEvents": [
+              "onContext:crew.toolsOk"
+            ]
+          },
+          {
+            "id": "crew.walkthrough.project",
+            "title": "Start a project",
+            "description": "Open an empty folder, describe the tool you need, press Enter in Claude Code — then answer the interview.\n[New Project](command:crew.newProject)",
             "media": {
               "markdown": "resources/walkthrough/first-project.md"
             },
             "completionEvents": [
-              "onCommand:crew.newProjectDemo",
               "onCommand:crew.newProject"
             ]
           }
@@ -336,32 +295,22 @@
     ]
   },
   "scripts": {
-    "build": "npm run build:plugin && npm run build:sdk && npm run build:ext && npm run build:webview",
-    "build:ext": "node scripts/build-extension.mjs",
-    "build:webview": "vite build --config webview/vite.config.mts",
-    "build:plugin": "node scripts/copy-plugin.mjs",
-    "build:sdk": "node scripts/stage-sdk.mjs",
+    "build": "node scripts/build-extension.mjs",
     "watch": "node scripts/build-extension.mjs --watch",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit",
     "lint": "eslint . && npm run typecheck",
     "test": "npm run test:unit",
     "test:unit": "vitest run --coverage",
     "pretest:integration": "npm run build && node scripts/build-tests.mjs",
-    "test:integration": "vscode-test && node scripts/test-untrusted.mjs",
+    "test:integration": "vscode-test",
     "package": "node scripts/package.mjs",
     "vscode:prepublish": "node scripts/verify-dist.mjs"
-  },
-  "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.283"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
     "@types/vscode": "1.90.0",
-    "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.2",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
@@ -370,11 +319,8 @@
     "eslint": "^10.11.0",
     "globals": "^17.0.0",
     "ovsx": "^1.2.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.1",
-    "vite": "^8.3.1",
     "vitest": "^5.0.2"
   }
 }

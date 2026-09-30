@@ -1,5 +1,5 @@
-// Bundles the extension host code into a single CommonJS file.
-// The Agent SDK is loaded at runtime from dist/sdk (see scripts/stage-sdk.mjs), never bundled.
+// Bundles the extension host code (and the shared .crew/ contract from ../crew-contract) into a
+// single CommonJS file.
 import * as esbuild from 'esbuild';
 
 const watch = process.argv.includes('--watch');

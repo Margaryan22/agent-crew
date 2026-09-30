@@ -1,62 +1,43 @@
-// Agent Crew — VS Code UI for the agent-crew Claude Code plugin.
+// Agent Crew — the VS Code control panel for the agent-crew Claude Code plugin.
+// The crew itself runs inside the official Claude Code extension, on the user's own Claude
+// subscription; this extension installs the plugin, starts crew commands and shows progress
+// from .crew/. It never calls a model and never handles credentials.
 
+import { execFile } from 'node:child_process';
 import * as vscode from 'vscode';
-import { gitVersion, loadSdk, resolveRuntime, runVersion, type RuntimePaths } from './agent/runtime';
-import type { SdkModule } from './agent/session';
-import { CrewController, type ControllerHost, type CrewConfig, OPEN_IN_CHAT } from './controller';
-import { CREW_PATHS } from './crew/model';
+import { claudeCodeLauncher, installClaudeCode, isClaudeCodeInstalled, isPluginInstalled, type Launcher, openPluginInstall } from './assistant';
+import { answerChoices, answeredText, continuePrompt } from './crew/answer';
+import { type CrewSnapshot, EMPTY_SNAPSHOT, type EscalationView } from './crew/model';
 import { CrewWatcher } from './crew/watcher';
-import {
-  activeProjects,
-  createLicenseProvider,
-  LICENSE_PROVIDER_CONFIG,
-  LicenseService,
-  markProject,
-  type LicenseCache,
-  type ProjectRegistryData,
-} from './license';
-import { type LogSink, redactingLogger, SecretRedactor } from './redact';
-import { looksLikeAnthropicKey, SecretStore } from './secrets';
-import type { ExtensionToWebview, WebviewToExtension } from './shared/protocol';
-import { Telemetry } from './telemetry';
-import { ChatViewProvider, CHAT_VIEW_ID } from './views/chatView';
-import { BudgetStatusBar } from './views/statusBar';
-import { DecisionsTreeProvider, showTaskDiff, type TaskNode, TasksTreeProvider } from './views/tasksTree';
+import type { Logger } from './log';
+import { checkTools } from './setup';
+import { ProjectTreeProvider, type ProjectNode } from './views/projectTree';
+import { CrewStatusBar } from './views/statusBar';
+import { showTaskDiff } from './views/taskDiff';
+import { type TaskNode, TasksTreeProvider } from './views/tasksTree';
 
-export const DEMO_IDEA =
-  'A tiny habit tracker web app: people add daily habits, tick them off each day and see a 7-day streak for each habit. No accounts — data stays in the browser.';
-
-const LICENSE_CACHE_KEY = 'crew.licenseCache';
-const PROJECTS_KEY = 'crew.projects';
+const SEEN_ESCALATIONS = 'crew.seenEscalations';
+const LAST_PHASE = 'crew.lastPhase';
+const PLUGIN_CONFIRMED = 'crew.pluginConfirmed';
+/** Files that may exist in a folder before /new-project without it being "existing code". */
+const EMPTY_FOLDER_NAMES = new Set(['.git', '.crew', '.vscode', '.idea', '.DS_Store', 'README.md', 'readme.md', '.gitignore', 'LICENSE']);
 
 /** Returned from activate() only in test mode. */
 export interface CrewTestApi {
-  controller: CrewController;
-  secrets: SecretStore;
-  posted: ExtensionToWebview[];
+  snapshot(): CrewSnapshot;
+  refresh(): Promise<CrewSnapshot>;
+  /** Prompts sent to Claude Code (the launcher is replaced by a recorder in tests). */
+  launches: Array<{ prompt: string | undefined; sessionId: string | undefined }>;
+  answer(escalationId: string, answer: string): Promise<void>;
   logLines: string[];
-  setSdkLoader(loader: ((entry: string) => Promise<SdkModule>) | undefined): void;
-  setRuntime(runtime: RuntimePaths | undefined): void;
-  refresh(): Promise<void>;
-}
-
-function readConfig(scope?: vscode.Uri): CrewConfig {
-  const c = vscode.workspace.getConfiguration('crew', scope);
-  const autonomy = c.get<string>('autonomy', 'full');
-  return {
-    budgetCapUsd: Math.max(0, c.get<number>('budgetCapUsd', 20)),
-    stackProfile: c.get<string>('stackProfile', 'tanstack'),
-    autonomy: autonomy === 'review' ? 'review' : 'full',
-    briefReviewMinutes: Math.min(240, Math.max(1, c.get<number>('briefReviewMinutes', 10))),
-  };
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<CrewTestApi | undefined> {
   const isTest = context.extensionMode === vscode.ExtensionMode.Test;
-  const output = vscode.window.createOutputChannel('Crew', { log: true });
-  const redactor = new SecretRedactor();
+  const output = vscode.window.createOutputChannel('Agent Crew', { log: true });
+  context.subscriptions.push(output);
   const logLines: string[] = [];
-  const sink: LogSink = isTest
+  const log: Logger = isTest
     ? {
         info: (m) => (logLines.push(m), output.info(m)),
         warn: (m) => (logLines.push(m), output.warn(m)),
@@ -64,330 +45,308 @@ export async function activate(context: vscode.ExtensionContext): Promise<CrewTe
         debug: (m) => (logLines.push(m), output.debug(m)),
       }
     : output;
-  const log = redactingLogger(sink, redactor);
-  const secrets = new SecretStore(context.secrets, redactor);
+
   const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-  const version = String((context.extension.packageJSON as { version?: string }).version ?? '0.0.0');
-  context.subscriptions.push(output);
-
-  // Telemetry: aggregates only; VS Code's global switch is enforced by the TelemetryLogger.
-  const telemetryLogger = vscode.env.createTelemetryLogger(
-    {
-      sendEventData: (name, data) => log.debug(`telemetry ${name} ${JSON.stringify(data ?? {})}`),
-      sendErrorData: () => undefined,
-    },
-    { ignoreBuiltInCommonProperties: true, ignoreUnhandledErrors: true },
-  );
-  context.subscriptions.push(telemetryLogger);
-  const telemetry = new Telemetry(
-    { logUsage: (name, data) => telemetryLogger.logUsage(name, data) },
-    () => vscode.workspace.getConfiguration('crew').get<boolean>('telemetry.enabled', true),
-  );
-
-  // License module (disabled by default).
-  const license = new LicenseService(createLicenseProvider(LICENSE_PROVIDER_CONFIG, (url, init) => fetch(url, init)), {
-    getKey: () => secrets.getLicenseKey(),
-    setKey: (key) => secrets.setLicenseKey(key),
-    deleteKey: () => secrets.clearLicenseKey(),
-    getCache: () => context.globalState.get<LicenseCache>(LICENSE_CACHE_KEY),
-    setCache: (cache) => Promise.resolve(context.globalState.update(LICENSE_CACHE_KEY, cache)),
-  });
-
-  let sdkLoader: ((entry: string) => Promise<SdkModule>) | undefined;
-  let runtimeOverride: RuntimePaths | undefined;
-  const runtime = () => runtimeOverride ?? resolveRuntime(context.extensionPath, vscode.workspace.getConfiguration('crew').get<string>('claudeCodePath', ''));
-  const posted: ExtensionToWebview[] = [];
-
-  // Messages only arrive once the view is registered below, after the controller exists.
-  const chat = new ChatViewProvider(context.extensionUri, redactor, log, (message) => onWebviewMessage(message), isTest ? (m) => posted.push(m) : undefined);
-  const fileUri = (rel: string) => vscode.Uri.joinPath(root!, ...rel.split('/'));
-  const encoder = new TextEncoder();
-
-  const host: ControllerHost = {
-    workspaceRoot: () => root?.fsPath,
-    isTrusted: () => vscode.workspace.isTrusted,
-    config: () => readConfig(root),
-    getApiKey: () => secrets.getApiKey(),
-    runtime,
-    loadSdk: (entry) => (sdkLoader ?? loadSdk)(entry),
-    async readFile(rel) {
-      if (!root) return undefined;
-      try {
-        return new TextDecoder().decode(await vscode.workspace.fs.readFile(fileUri(rel)));
-      } catch {
-        return undefined;
+  const launches: CrewTestApi['launches'] = [];
+  const launcher: Launcher = isTest
+    ? {
+        open: (prompt, sessionId) => {
+          launches.push({ prompt, sessionId });
+          return Promise.resolve();
+        },
       }
-    },
-    async writeFile(rel, content) {
-      if (!root) throw new Error('No workspace folder');
-      const uri = fileUri(rel);
-      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
-      await vscode.workspace.fs.writeFile(uri, encoder.encode(content));
-    },
-    workspaceState: context.workspaceState,
-    post: (message) => chat.post(message),
-    async notify(level, message, ...actions) {
-      const show = level === 'error' ? vscode.window.showErrorMessage : level === 'warn' ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
-      const choice = await show(message, ...actions);
-      if (choice === 'Open Settings') void vscode.commands.executeCommand('workbench.action.openSettings', 'crew.budgetCapUsd');
-      if (choice === 'Enter License') void vscode.commands.executeCommand('crew.enterLicense');
-      return choice;
-    },
-    notifyEscalation(escalation) {
-      const text = `${escalation.title}: ${escalation.question}`.replace(/\s+/g, ' ');
-      const message = text.length > 300 ? `${text.slice(0, 299)}…` : text;
-      const actions = [...escalation.options.slice(0, 3), OPEN_IN_CHAT];
-      const show = escalation.kind === 'permission' ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
-      return Promise.resolve(show(message, ...actions));
-    },
-    focusChat: () => chat.focus(),
-    setContext: (key, value) => void vscode.commands.executeCommand('setContext', key, value),
-    license,
-    projects: {
-      active: () => activeProjects(context.globalState.get<ProjectRegistryData>(PROJECTS_KEY) ?? {}, Date.now()),
-      mark: (project, state) =>
-        Promise.resolve(context.globalState.update(PROJECTS_KEY, markProject(context.globalState.get<ProjectRegistryData>(PROJECTS_KEY) ?? {}, project, state, Date.now()))),
-    },
-    telemetry: (event) => telemetry.send(event),
-    runCommand: (command) => void vscode.commands.executeCommand(command),
-    log,
-    now: () => Date.now(),
-    clientApp: `agent-crew-vscode/${version}`,
-  };
+    : claudeCodeLauncher;
+  const setContext = (key: string, value: unknown) => void vscode.commands.executeCommand('setContext', key, value);
+  const fileUri = (rel: string) => vscode.Uri.joinPath(root!, ...rel.split('/'));
 
-  const controller = new CrewController(host);
-  context.subscriptions.push({ dispose: () => controller.dispose() });
-
-  const webviewCommands = {
-    newProject: 'crew.newProject',
-    feature: 'crew.feature',
-    status: 'crew.status',
-    resume: 'crew.resume',
-    setApiKey: 'crew.setApiKey',
-    openBrief: 'crew.openBrief',
-    showLog: 'crew.showOutput',
-  } as const;
-  function onWebviewMessage(message: WebviewToExtension): void {
-    switch (message.type) {
-      case 'ready':
-        chat.post(controller.initMessage());
-        break;
-      case 'send':
-        void controller.submit(message.text);
-        break;
-      case 'stop':
-        void controller.stop('user');
-        break;
-      case 'answer':
-        void controller.answerEscalation(message.escalationId, message.answer);
-        break;
-      case 'command':
-        void vscode.commands.executeCommand(webviewCommands[message.command]);
-        break;
-    }
-  }
-  context.subscriptions.push(chat, vscode.window.registerWebviewViewProvider(CHAT_VIEW_ID, chat));
-
+  // --- Views -------------------------------------------------------------------
+  const projectTree = new ProjectTreeProvider(root);
   const tasksTree = new TasksTreeProvider(root);
-  const decisionsTree = new DecisionsTreeProvider(root);
-  const statusBar = new BudgetStatusBar();
+  const statusBar = new CrewStatusBar();
   context.subscriptions.push(
+    vscode.window.createTreeView('crew.project', { treeDataProvider: projectTree }),
     vscode.window.createTreeView('crew.tasks', { treeDataProvider: tasksTree, showCollapseAll: true }),
-    vscode.window.createTreeView('crew.decisions', { treeDataProvider: decisionsTree }),
     statusBar,
-    controller.onDidChange(() => statusBar.update(controller.state())),
   );
 
   let watcher: CrewWatcher | undefined;
+  const snapshot = () => watcher?.snapshot ?? EMPTY_SNAPSHOT;
   if (root) {
     watcher = new CrewWatcher(root, log);
-    context.subscriptions.push(
-      watcher,
-      watcher.onDidChange((snapshot) => {
-        controller.onSnapshot(snapshot);
-        tasksTree.update(snapshot);
-        decisionsTree.update(snapshot);
-      }),
+    context.subscriptions.push(watcher, watcher.onDidChange((s) => onSnapshot(s)));
+  }
+
+  function onSnapshot(s: CrewSnapshot): void {
+    projectTree.update(s);
+    tasksTree.update(s);
+    statusBar.update(s);
+    setContext('crew.hasProject', s.exists);
+    setContext('crew.hasSession', Boolean(s.latestSession));
+    if (!isTest) notifyChanges(s);
+  }
+
+  /** New questions from the crew, and the end of a run, become notifications. */
+  function notifyChanges(s: CrewSnapshot): void {
+    const seen = new Set(context.workspaceState.get<string[]>(SEEN_ESCALATIONS, []));
+    const fresh = s.escalations.filter((e) => e.status === 'open' && !seen.has(e.id));
+    if (fresh.length) {
+      for (const e of fresh) seen.add(e.id);
+      void context.workspaceState.update(SEEN_ESCALATIONS, [...seen]);
+      const first = fresh[0]!;
+      const text = fresh.length > 1 ? `Agent Crew has ${fresh.length} questions for you, starting with ${first.id}: ${first.question}` : `Agent Crew needs you — ${first.id}: ${first.question}`;
+      void vscode.window.showInformationMessage(text.length > 300 ? `${text.slice(0, 299)}…` : text, 'Answer', 'Later').then((choice) => {
+        if (choice === 'Answer') void answerEscalation(first.id);
+      });
+    }
+    const phase = s.status?.phase;
+    const last = context.workspaceState.get<string>(LAST_PHASE);
+    if (phase && phase !== last) {
+      void context.workspaceState.update(LAST_PHASE, phase);
+      if (last && (phase === 'done' || phase === 'stopped')) {
+        const message = phase === 'done' ? 'Agent Crew finished the project.' : `The crew run stopped${s.status?.stop_reason ? ` (${s.status.stop_reason.replace('_', ' ')})` : ''}.`;
+        void vscode.window.showInformationMessage(message, 'Open Report').then((choice) => {
+          if (choice) void openCrewFile('.crew/report.md', 'The report');
+        });
+      }
+    }
+  }
+
+  // --- Claude Code -----------------------------------------------------------------
+
+  /** Claude Code and the plugin are there (or the user says so); otherwise offers to install them. */
+  async function ensureReady(): Promise<boolean> {
+    if (isTest) return true;
+    if (!isClaudeCodeInstalled()) {
+      const choice = await vscode.window.showWarningMessage(
+        'Agent Crew runs inside Claude Code, on your own Claude subscription. Install the Claude Code extension and sign in first.',
+        'Install Claude Code',
+      );
+      if (choice) {
+        await installClaudeCode();
+        void vscode.window.showInformationMessage('When Claude Code is installed, sign in to it (it opens a sign-in page), then run this command again.');
+      }
+      return false;
+    }
+    setContext('crew.claudeCodeInstalled', true);
+    if (isPluginInstalled() !== true && !context.globalState.get<boolean>(PLUGIN_CONFIRMED)) {
+      const choice = await vscode.window.showInformationMessage(
+        'Install the Agent Crew plugin into Claude Code (once): Claude Code opens its plugin dialog — confirm the install there, then run this command again.',
+        'Install Plugin',
+        'It Is Installed',
+      );
+      if (choice === 'Install Plugin') await openPluginInstall();
+      if (choice !== 'It Is Installed') return false;
+      await context.globalState.update(PLUGIN_CONFIRMED, true);
+    }
+    return true;
+  }
+
+  /** Opens Claude Code with the prompt pre-filled; the user presses Enter there. */
+  async function launch(prompt: string, sessionId?: string): Promise<void> {
+    if (sessionId) {
+      // An already open session keeps its input box; the text is on the clipboard then.
+      await vscode.env.clipboard.writeText(prompt);
+    }
+    try {
+      await launcher.open(prompt, sessionId);
+    } catch (err) {
+      log.error(`Could not open Claude Code: ${String(err)}`);
+      void vscode.window.showErrorMessage(`Could not open Claude Code (${err instanceof Error ? err.message : String(err)}). Is the Claude Code extension enabled?`);
+      return;
+    }
+    const shown = prompt.length > 80 ? `${prompt.slice(0, 79)}…` : prompt;
+    void vscode.window.showInformationMessage(
+      sessionId ? `Claude Code is open. Send "${shown}" to continue — it is on your clipboard if the box is empty.` : `Claude Code is open with "${shown}". Press Enter there to start.`,
     );
   }
 
-  // --- Commands -------------------------------------------------------------
+  // --- Commands --------------------------------------------------------------------
   const register = (id: string, fn: (...args: never[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(id, fn));
 
-  const openCrewFile = async (rel: string, label: string) => {
+  async function openCrewFile(rel: string, label: string): Promise<void> {
     if (!root) return;
     const uri = fileUri(rel);
     try {
       await vscode.workspace.fs.stat(uri);
       await vscode.window.showTextDocument(uri, { preview: false });
     } catch {
-      void vscode.window.showInformationMessage(`${label} does not exist yet (${rel}). The crew writes it once the project starts.`);
+      void vscode.window.showInformationMessage(`${label} does not exist yet (${rel}). The crew writes it as the project goes.`);
     }
-  };
+  }
 
-  register('crew.newProject', async () => {
+  async function requireFolder(): Promise<vscode.Uri | undefined> {
+    if (root) return root;
+    const choice = await vscode.window.showInformationMessage('Open a folder for the project first — an empty one for a new project.', 'Open Folder…');
+    if (choice) void vscode.commands.executeCommand('vscode.openFolder');
+    return undefined;
+  }
+
+  async function newProject(): Promise<void> {
+    const folder = await requireFolder();
+    if (!folder) return;
+    const s = snapshot();
+    if (s.initialised && s.status?.phase !== 'done') {
+      const choice = await vscode.window.showInformationMessage(`This folder already has a crew run (${s.status?.phase ?? 'starting'}). Continue it instead?`, 'Continue', 'Cancel');
+      if (choice === 'Continue') await continueRun();
+      return;
+    }
+    const entries = await vscode.workspace.fs.readDirectory(folder);
+    const other = entries.filter(([name]) => !EMPTY_FOLDER_NAMES.has(name));
+    if (other.length) {
+      const choice = await vscode.window.showWarningMessage(
+        'This folder is not empty. New Project creates a new app from a template here; to change existing code, use Add Feature.',
+        { modal: true },
+        'Create Here Anyway',
+        'Add a Feature Instead',
+        'Open Another Folder…',
+      );
+      if (choice === 'Add a Feature Instead') return feature();
+      if (choice === 'Open Another Folder…') return void vscode.commands.executeCommand('vscode.openFolder');
+      if (choice !== 'Create Here Anyway') return;
+    }
     const idea = await vscode.window.showInputBox({
-      title: 'Crew: New Project',
-      prompt: 'Describe the product idea. The crew will write a brief, plan tasks and build it.',
-      placeHolder: 'A booking app for a small barbershop with online payments…',
+      title: 'Agent Crew: New Project',
+      prompt: 'Describe the tool you need, in any language. The crew will interview you, then plan, build and test it.',
+      placeHolder: 'Online booking for a barbershop: clients pick a barber and a time; the owner sees the day…',
       ignoreFocusOut: true,
     });
     if (!idea?.trim()) return;
-    chat.focus();
-    await controller.newProject(idea);
-  });
-  register('crew.newProjectDemo', async () => {
-    chat.focus();
-    await controller.newProject(DEMO_IDEA);
-  });
-  register('crew.feature', async () => {
+    if (!(await ensureReady())) return;
+    await launch(`/agent-crew:new-project ${idea.trim()}`);
+  }
+
+  async function feature(): Promise<void> {
+    if (!(await requireFolder())) return;
     const description = await vscode.window.showInputBox({
-      title: 'Crew: Feature',
-      prompt: 'Describe the feature to add to this project.',
+      title: 'Agent Crew: Add Feature',
+      prompt: 'Describe the feature to add to this project. The crew works on a separate git branch.',
       ignoreFocusOut: true,
     });
     if (!description?.trim()) return;
-    chat.focus();
-    await controller.feature(description);
-  });
-  register('crew.status', async () => {
-    chat.focus();
-    await controller.status();
-  });
-  register('crew.stop', () => controller.stop('user'));
-  register('crew.resume', async () => {
-    chat.focus();
-    await controller.resume();
-  });
-  register('crew.setApiKey', async () => {
-    const key = await vscode.window.showInputBox({
-      title: 'Crew: Set API Key',
-      prompt: 'Anthropic API key (console.anthropic.com → API Keys). Stored in the OS keychain via VS Code SecretStorage.',
-      password: true,
-      ignoreFocusOut: true,
-      validateInput: (value) =>
-        value.trim() === ''
-          ? 'Enter a key'
-          : looksLikeAnthropicKey(value)
-            ? undefined
-            : { message: 'This does not look like an Anthropic API key (sk-ant-…). It will be saved anyway.', severity: vscode.InputBoxValidationSeverity.Warning },
-    });
-    if (!key?.trim()) return;
-    await secrets.setApiKey(key);
-    void vscode.window.showInformationMessage('Anthropic API key saved.');
-  });
-  register('crew.clearApiKey', async () => {
-    const choice = await vscode.window.showWarningMessage('Remove the stored Anthropic API key?', { modal: true }, 'Remove');
-    if (choice !== 'Remove') return;
-    await secrets.clearApiKey();
-    void vscode.window.showInformationMessage('Anthropic API key removed.');
-  });
-  register('crew.openBrief', () => openCrewFile(CREW_PATHS.brief, 'The brief'));
-  register('crew.openStatus', () => openCrewFile(CREW_PATHS.status, 'The status file'));
-  register('crew.enterLicense', async () => {
-    if (!license.isEnabled) {
-      void vscode.window.showInformationMessage('Agent Crew has no license restrictions in this version.');
-      return;
-    }
-    const key = await vscode.window.showInputBox({ title: 'Crew: Enter License', prompt: 'Agent Crew Pro license key', password: true, ignoreFocusOut: true });
-    if (!key?.trim()) return;
-    const result = await license.enterKey(key);
-    const show = result.ok ? vscode.window.showInformationMessage : vscode.window.showErrorMessage;
-    void show(result.message);
-  });
-  register('crew.showOutput', () => output.show(true));
-  register('crew.refresh', async () => {
-    await watcher?.refresh();
-  });
-  register('crew.openTask', async (node: TaskNode | undefined) => {
-    if (!root || node?.kind !== 'task') return;
-    await vscode.window.showTextDocument(fileUri(node.task.path), { preview: true });
-  });
-  register('crew.showTaskDiff', async (node: TaskNode | undefined) => {
-    if (!root || node?.kind !== 'task') return;
-    await showTaskDiff(node.task, root, log);
-  });
-  register('crew.checkDependencies', async () => {
-    const rt = runtime();
-    const lines: string[] = [];
-    let ok = true;
-    const add = (pass: boolean, text: string) => {
-      lines.push(`${pass ? '✓' : '✗'} ${text}`);
-      if (!pass) ok = false;
-    };
-    add(vscode.workspace.isTrusted, vscode.workspace.isTrusted ? 'Workspace is trusted' : 'Workspace is not trusted');
-    add(Boolean(root), root ? `Workspace folder: ${root.fsPath}` : 'No folder is open');
-    add(Boolean(await secrets.getApiKey()), 'Anthropic API key is set');
-    if (rt.executable) {
-      const v = await runVersion(rt.executable);
-      add(v.ok, v.ok ? `Claude Code ${v.output} (${rt.executableSource})` : `Claude Code at ${rt.executable} does not run: ${v.output}`);
-    } else {
-      add(false, 'Claude Code executable not found');
-    }
-    add(Boolean(rt.plugin), rt.plugin ? `Plugin ${rt.plugin.name}${rt.plugin.version ? `@${rt.plugin.version}` : ''}` : 'agent-crew plugin missing');
-    const git = await gitVersion();
-    add(git.ok, git.ok ? git.output : 'git is not installed or not on PATH');
-    for (const problem of rt.problems) if (!lines.some((l) => l.includes(problem))) add(false, problem);
-    log.info(`Dependency check:\n${lines.join('\n')}`);
-    host.setContext('crew.dependenciesOk', ok);
-    if (ok) {
-      void vscode.window.showInformationMessage('Agent Crew: all dependencies are in place.');
-    } else {
-      const choice = await vscode.window.showWarningMessage(`Agent Crew: ${lines.filter((l) => l.startsWith('✗')).join('; ')}`, 'Show Log', 'Set API Key');
-      if (choice === 'Show Log') output.show(true);
-      if (choice === 'Set API Key') void vscode.commands.executeCommand('crew.setApiKey');
-    }
-    return ok;
-  });
-
-  // --- State wiring ------------------------------------------------------------
-  context.subscriptions.push(
-    secrets.onDidChangeApiKey((hasKey) => {
-      host.setContext('crew.hasApiKey', hasKey);
-      controller.setHasApiKey(hasKey);
-    }),
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('crew')) controller.onConfigChanged();
-    }),
-  );
-
-  const hasKey = Boolean(await secrets.getApiKey());
-  host.setContext('crew.hasApiKey', hasKey);
-  host.setContext('crew.licenseEnabled', license.isEnabled);
-  host.setContext('crew.sessionActive', false);
-  controller.setHasApiKey(hasKey);
-
-  const startupProblems = runtime().problems;
-  if (startupProblems.length && !isTest) {
-    log.warn(`Runtime problems: ${startupProblems.join(' | ')}`);
-    void vscode.window.showWarningMessage(`Agent Crew: ${startupProblems[0]}`, 'Check Dependencies').then((choice) => {
-      if (choice) void vscode.commands.executeCommand('crew.checkDependencies');
-    });
+    if (!(await ensureReady())) return;
+    await launch(`/agent-crew:feature ${description.trim()}`);
   }
 
-  // The first refresh fires onDidChange, which feeds the controller and both trees.
-  await watcher?.refresh();
-  statusBar.update(controller.state());
-  if (!isTest) void controller.offerResume();
+  async function continueRun(): Promise<void> {
+    if (!(await ensureReady())) return;
+    const session = snapshot().latestSession;
+    await launch(continuePrompt(undefined, undefined, session), session?.id);
+  }
+
+  function findEscalation(arg: unknown): EscalationView | undefined {
+    const open = snapshot().escalations.filter((e) => e.status === 'open');
+    if (typeof arg === 'string') return open.find((e) => e.id === arg);
+    if (arg && typeof arg === 'object' && (arg as ProjectNode).kind === 'escalation') return (arg as Extract<ProjectNode, { kind: 'escalation' }>).escalation;
+    return undefined;
+  }
+
+  async function writeAnswer(e: EscalationView, answer: string): Promise<void> {
+    const uri = fileUri(e.path);
+    const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(answeredText(text, answer, new Date())));
+    log.info(`Answered ${e.id}`);
+    await watcher?.refresh();
+  }
+
+  async function answerEscalation(arg?: unknown): Promise<void> {
+    let e = findEscalation(arg);
+    if (!e) {
+      const open = snapshot().escalations.filter((x) => x.status === 'open');
+      if (!open.length) return void vscode.window.showInformationMessage('The crew has no open questions.');
+      const picked = await vscode.window.showQuickPick(
+        open.map((x) => ({ label: `${x.id}: ${x.question}`, escalation: x })),
+        { title: 'Agent Crew: Answer a Question', placeHolder: 'Which question?' },
+      );
+      e = picked?.escalation;
+    }
+    if (!e) return;
+    const other = { label: '$(edit) Another answer…', answer: undefined as string | undefined };
+    const picked = await vscode.window.showQuickPick(
+      [...answerChoices(e).map((c) => ({ label: c.label, description: c.recommended ? 'recommended' : undefined, answer: c.answer as string | undefined })), other],
+      { title: `${e.id}: ${e.question}`, placeHolder: 'Choose an answer', ignoreFocusOut: true },
+    );
+    if (!picked) return;
+    const answer = picked.answer ?? (await vscode.window.showInputBox({ title: `${e.id}: ${e.question}`, prompt: 'Your answer', ignoreFocusOut: true }));
+    if (!answer?.trim()) return;
+    await writeAnswer(e, answer);
+    const session = snapshot().latestSession;
+    const choice = await vscode.window.showInformationMessage(`${e.id} answered. The crew picks it up when the session continues.`, 'Continue in Claude Code');
+    if (choice) await launch(continuePrompt(e, answer, session), session?.id);
+  }
+
+  register('crew.newProject', newProject);
+  register('crew.feature', feature);
+  register('crew.continue', continueRun);
+  register('crew.answerEscalation', answerEscalation);
+  register('crew.status', () => vscode.commands.executeCommand('crew.project.focus'));
+  register('crew.installClaudeCode', async () => {
+    if (isClaudeCodeInstalled()) {
+      setContext('crew.claudeCodeInstalled', true);
+      return void vscode.window.showInformationMessage('Claude Code is already installed. Sign in from its panel if you have not yet.');
+    }
+    await installClaudeCode();
+  });
+  register('crew.installPlugin', async () => {
+    if (!isTest && !isClaudeCodeInstalled()) return void vscode.window.showWarningMessage('Install Claude Code first.', 'Install Claude Code').then((c) => c && installClaudeCode());
+    if (isPluginInstalled() === true) {
+      setContext('crew.pluginInstalled', true);
+      return void vscode.window.showInformationMessage('The Agent Crew plugin is already installed in Claude Code.');
+    }
+    await openPluginInstall();
+  });
+  register('crew.checkSetup', async () => {
+    const exec = (command: string, args: string[]) =>
+      new Promise<{ ok: boolean; stdout: string }>((resolve) => execFile(command, args, { timeout: 15_000 }, (err, stdout) => resolve({ ok: !err, stdout: String(stdout) })));
+    const claude = isClaudeCodeInstalled();
+    const plugin = isPluginInstalled();
+    const tools = await checkTools(exec);
+    const lines = [
+      `${claude ? '✓' : '✗'} Claude Code extension${claude ? '' : ' — install it and sign in'}`,
+      `${plugin === true ? '✓' : '✗'} Agent Crew plugin in Claude Code${plugin === true ? '' : ' — run "Agent Crew: Install Plugin"'}`,
+      ...tools.map((t) => `${t.ok ? '✓' : '✗'} ${t.name}: ${t.detail}${t.fix ? ` — ${t.fix}` : ''}`),
+    ];
+    log.info(`Setup check:\n${lines.join('\n')}`);
+    const toolsOk = tools.every((t) => t.ok);
+    setContext('crew.claudeCodeInstalled', claude);
+    setContext('crew.pluginInstalled', plugin === true);
+    setContext('crew.toolsOk', toolsOk);
+    const failed = lines.filter((l) => l.startsWith('✗'));
+    if (!failed.length) void vscode.window.showInformationMessage('Agent Crew: everything is in place.');
+    else void vscode.window.showWarningMessage(`Agent Crew setup: ${failed.join('; ')}`, 'Show Details').then((c) => c && output.show(true));
+    return !failed.length;
+  });
+  register('crew.openBrief', () => openCrewFile('.crew/brief.md', 'The brief'));
+  register('crew.openStatus', () => openCrewFile('.crew/status.md', 'The status'));
+  register('crew.openReport', () => openCrewFile('.crew/report.md', 'The report'));
+  register('crew.openAccessChecklist', () => openCrewFile('.crew/access-checklist.md', 'The access checklist'));
+  register('crew.openTask', async (node: TaskNode | undefined) => {
+    if (root && node?.kind === 'task') await vscode.window.showTextDocument(fileUri(node.task.path), { preview: true });
+  });
+  register('crew.showTaskDiff', async (node: TaskNode | undefined) => {
+    if (root && node?.kind === 'task') await showTaskDiff(node.task, root, log);
+  });
+  register('crew.refresh', () => watcher?.refresh());
+  register('crew.showOutput', () => output.show(true));
+
+  setContext('crew.claudeCodeInstalled', isClaudeCodeInstalled());
+  setContext('crew.pluginInstalled', isPluginInstalled() === true);
+  if (watcher) await watcher.refresh();
+  else onSnapshot(EMPTY_SNAPSHOT);
 
   if (!isTest) return undefined;
   return {
-    controller,
-    secrets,
-    posted,
+    snapshot,
+    refresh: () => watcher?.refresh() ?? Promise.resolve(EMPTY_SNAPSHOT),
+    launches,
+    answer: async (id, answer) => {
+      const e = snapshot().escalations.find((x) => x.id === id);
+      if (!e) throw new Error(`${id} not found`);
+      await writeAnswer(e, answer);
+    },
     logLines,
-    setSdkLoader: (loader) => {
-      sdkLoader = loader;
-    },
-    setRuntime: (rt) => {
-      runtimeOverride = rt;
-    },
-    refresh: async () => {
-      await watcher?.refresh();
-    },
   };
 }
 
 export function deactivate(): void {
-  // Disposables registered on the context clean up the session and watchers.
+  // Disposables registered on the context clean up watchers and views.
 }

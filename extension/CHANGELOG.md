@@ -2,6 +2,15 @@
 
 Versions with an odd minor (`0.1.x`, `0.3.x`) are pre-releases; even minors (`0.2.x`, `0.4.x`) are releases.
 
+## 0.3.0 — pre-release
+
+Agent Crew is now a control panel for the **agent-crew** plugin running in **Claude Code**, on the user's own Claude subscription (Anthropic does not allow third-party apps to sign in with Claude subscriptions).
+
+- Removed: the built-in Agent SDK engine, the chat view, API-key storage, the bundled Claude Code runtime and the platform builds (the VSIX is universal, ~120 KB), the license module and local telemetry.
+- New: **Project** view (phase, progress, questions and access the crew needs, spend, brief, report, decisions), **Tasks** board built on the shared `.crew/` contract, answering the crew's questions from VS Code, **Continue in Claude Code**, one-click setup of Claude Code and the plugin, **Check Setup** for Node.js, git and Docker, a new walkthrough.
+- **Show Diff** follows the crew's `T-NNN:` commits.
+- Requires VS Code 1.94 (the same as Claude Code).
+
 ## 0.1.0 — pre-release
 
 First pre-release.

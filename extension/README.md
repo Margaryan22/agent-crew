@@ -1,82 +1,65 @@
 # Agent Crew
 
-Run a crew of Claude agents from your editor. Describe a product idea; the crew writes a brief, plans tasks, builds the code in your workspace and only stops to ask you when it has to. You follow along in a chat, a live task board and a budget meter — no terminal required.
+A crew of AI agents that builds small-business web apps — booking, inventory, orders, simple CRMs — **inside Claude Code, on your own Claude subscription**. Describe the tool you need; the crew interviews you, writes and reviews a brief, designs the architecture, writes acceptance tests first, builds task by task with QA and security review, and hands you a report. It asks you only when it has to.
 
-Works in **VS Code**, **Cursor** and **Windsurf** (via Open VSX), locally and in Remote / Codespaces workspaces.
+This extension is the control panel: it sets up the **agent-crew** plugin in Claude Code, starts crew runs, and shows the run live — phase, task board, questions waiting for you, spend.
 
 > **Pre-release.** Versions `0.ODD.x` are pre-releases; `0.EVEN.x` are stable.
 
-## Features
+## How it works
 
-- **Chat** — send an idea or a follow-up; see each agent's messages, the model it runs on, its tool calls and whether it is running or done. A **Stop** button ends the session at any time.
-- **Escalations** — when the crew needs a decision (a clarifying question, or an action the crew's policy does not cover) you get a notification with up to three answer buttons, and the same question as a card in the chat. Either answer continues the session.
-- **Tasks** — the task board from `.crew/tasks/`, grouped into *To do*, *In progress*, *Review*, *Done* and *Blocked*, updated live. Each task shows its assignee and attempts; click to open it, or use **Show Diff** to review what changed.
-- **Decisions** — architecture decision records from `.crew/decisions/ADR-*.md`.
-- **Budget** — the status bar shows money spent against your cap and the agent currently working. You are warned at 80%; at 100% the session stops and the stop is recorded in `.crew/status.md`.
-- **Resume** — sessions survive a window reload: Agent Crew offers to resume an interrupted session, and **Crew: Resume** continues the last one at any time.
+- The agents run in **Claude Code**, Anthropic's official extension, where you sign in with your Claude subscription (or an API key). Agent Crew never sees your credentials and never calls a model itself.
+- The crew is the open-source **agent-crew** plugin: nine agents (PM, critic, architect, QA, frontend, backend, database, security, context keeper), curated skills, and safety hooks that block unvetted packages, pushes to `main`, secrets in `.env` and deletes outside the project.
+- All state lives in your repository, in `.crew/` — brief, tasks, decisions, questions, status, report. This extension reads it; nothing is stored elsewhere.
+
+Generated projects use TanStack Start (React, TypeScript), Drizzle ORM with PostgreSQL, Tailwind, Vitest and Playwright, with sign-in and roles built in.
 
 ## Getting started
 
-1. Install Agent Crew and open a folder (the crew works in the open folder).
-2. Follow the **Get started with Agent Crew** walkthrough (*Help → Welcome*), or:
-   - run **Crew: Set API Key** and paste an Anthropic API key from [console.anthropic.com](https://console.anthropic.com/settings/keys);
-   - run **Crew: Check Dependencies**;
-   - run **Crew: New Project** and describe your idea — or **Crew: Start Demo Project** for a small habit tracker.
-3. Open the **Crew** view in the Activity Bar to follow along.
+Follow **Get started with Agent Crew** (*Help → Welcome*), or:
 
-### Requirements
+1. **Install Claude Code** (the extension offers it) and sign in.
+2. **Agent Crew: Install Plugin into Claude Code** — Claude Code opens its plugin dialog; confirm.
+3. **Agent Crew: Check Setup** — Node.js 22+, git and Docker (the project's database runs in Docker).
+4. Open an **empty folder**, run **Agent Crew: New Project** and describe your idea in any language. Claude Code opens with the command filled in — press **Enter**, then answer the interview.
 
-- An **Anthropic API key**. You pay Anthropic directly for what the crew uses.
-- **git** on your `PATH`.
-- A **trusted** workspace. Agents edit files and run commands, so Agent Crew does not run in Restricted Mode.
-- Nothing else: the platform builds of Agent Crew bundle the Claude Code runtime that the Claude Agent SDK needs. On a platform without a bundled runtime, install Claude Code and set `crew.claudeCodePath` (or keep `claude` on your `PATH`).
+## While the crew works
+
+The **Agent Crew** view in the Activity Bar shows:
+
+- **Project** — the phase and a one-line summary; task progress; **Needs you** (questions from the crew — click to answer — and access the crew needs, like accounts or real data); the estimated spend; the brief, the report and the architecture decisions.
+- **Tasks** — the board from `.crew/tasks/`, grouped by blocked / in progress / in review / to do / done, with owner, review stage and retries. **Show Diff** opens a task's changes from its `T-NNN:` commits.
+- **Status bar** — phase, tasks done and how many things wait for you.
+
+When you answer a question here, Agent Crew writes it to `.crew/escalations/` and reopens the run's Claude Code session with a short "continue" message for you to send.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| Crew: New Project | Start `/new-project` with your idea |
-| Crew: Feature | Add a feature to the current project (`/feature`) |
-| Crew: Status | Project status in the chat (asks the crew when a session runs; otherwise summarises `.crew/`) |
-| Crew: Stop | Stop the running session |
-| Crew: Resume | Resume the last session |
-| Crew: Set API Key / Clear API Key | Store or remove your Anthropic API key |
-| Crew: Open Brief / Open Status | Open `.crew/brief.md` / `.crew/status.md` |
-| Crew: Check Dependencies | Verify runtime, plugin, git, trust and key |
-| Crew: Show Log | Open the **Crew** output channel |
+| Agent Crew: New Project | Start `/agent-crew:new-project` with your idea in Claude Code |
+| Agent Crew: Add Feature | Start `/agent-crew:feature` for a crew-built project (works on a new git branch) |
+| Agent Crew: Continue in Claude Code | Reopen the Claude Code session of the current run |
+| Agent Crew: Answer the Crew's Question | Answer an open question from the crew |
+| Agent Crew: Show Status | Open the Agent Crew view |
+| Agent Crew: Install Claude Code / Install Plugin into Claude Code | One-time setup |
+| Agent Crew: Check Setup | Check Claude Code, the plugin, Node.js, git and Docker |
+| Agent Crew: Open Brief / Open Report / Open Status File / Open Access Checklist | Open the crew's documents |
+| Agent Crew: Show Log | Open the **Agent Crew** output channel |
 
-In the chat you can also type `/new-project …`, `/feature …` and `/status`.
+The crew's own settings — budget cap, autonomy (`full` or `review`), stack profile — live in Claude Code: `/plugin` → agent-crew → Configure.
 
-## Settings
+## Requirements
 
-| Setting | Default | Description |
-| --- | --- | --- |
-| `crew.budgetCapUsd` | `20` | Spending cap for the project in USD (all sessions in `.crew/costs.log`). `0` disables the cap. |
-| `crew.stackProfile` | `tanstack` | Stack conventions the crew follows. |
-| `crew.autonomy` | `full` | `full`: the crew only stops for escalations. `review`: the crew shows you the brief and waits for approval. |
-| `crew.briefReviewMinutes` | `10` | In `review` mode, how long to wait for your approval before continuing. |
-| `crew.telemetry.enabled` | `true` | Anonymous aggregate usage data (see below). Also requires VS Code telemetry to be on. |
-| `crew.claudeCodePath` | *(empty)* | Use a specific Claude Code executable instead of the bundled one. |
+- **Claude Code** extension, signed in (Claude Pro or Max, or an API key). On a subscription the crew uses your plan's limits; the spend shown here is the plugin's estimate at API list prices.
+- **Node.js 22+**, **git** and **Docker** for the generated project.
+- A **trusted** workspace — the crew edits files and runs commands.
+- VS Code 1.94 or newer, or Cursor / Windsurf / VSCodium (through Open VSX) with Claude Code installed.
 
-## How it works
+## Privacy
 
-Agent Crew is a UI for the **agent-crew** Claude Code plugin, which ships inside the extension and holds the agents, skills and hooks. Sessions run on the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) in your workspace.
-
-The project's state lives in your repository, in `.crew/` — tasks, escalations, decisions, the brief, the status and `costs.log`. Agent Crew reads it and shows it; it does not keep a separate copy, so the state travels with your repo and your team.
-
-## Privacy and security
-
-- Your API key is stored in the operating system keychain through VS Code SecretStorage. It is never written to settings or logs and never sent to the chat view.
-- Agent Crew runs only in trusted workspaces.
-- Tool permissions follow the plugin's policy. Anything the policy does not cover becomes an escalation for you to answer — the crew never gets a blanket approval.
-- The chat view uses a strict Content Security Policy and loads only files shipped with the extension.
-
-## Telemetry
-
-When both VS Code telemetry and `crew.telemetry.enabled` are on, Agent Crew records **aggregates only**: session duration, number of tasks and escalations, total cost, how the session ended, and error categories. It never records code, prompts, file names or agent output. VS Code's common telemetry properties are not attached.
-
-This version has no telemetry backend: events are written to the **Crew** output channel (debug level) and do not leave your machine.
+Agent Crew has no telemetry, no account and no backend. It reads `.crew/` in your workspace, writes your answers to `.crew/escalations/`, and asks Claude Code to open sessions. Your code and prompts go only where Claude Code sends them.
 
 ## Support
 
-See [SUPPORT.md](SUPPORT.md).
+See [SUPPORT.md](SUPPORT.md). The plugin, this extension and their tests are at <https://github.com/Margaryan22/agent-crew>.

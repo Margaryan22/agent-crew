@@ -2,7 +2,7 @@
 
 A crew of AI agents — PM, critic, architect, QA, frontend, backend, DB and security — that turns an idea for a small-business tool into a working, tested project. The crew runs inside your own AI assistant on your own subscription: Claude Code today, ChatGPT's Codex next.
 
-> **Status: in development.** All parts of the plugin are in place — agents, skills, hooks, commands, the `crew` CLI and the project template — and tested without a model. A full run with a real model, the eval harness (step 6 of [PLAN.md](PLAN.md)) and the VS Code companion (step E) are next.
+> **Status: in development.** All parts of the plugin are in place — agents, skills, hooks, commands, the `crew` CLI and the project template — and tested without a model; the VS Code extension is the control panel for it (0.3.0 pre-release). A full run with a real model and the eval harness (step 6 of [PLAN.md](PLAN.md)) are next.
 
 ## Repository
 
@@ -10,7 +10,7 @@ A crew of AI agents — PM, critic, architect, QA, frontend, backend, DB and sec
 | --- | --- |
 | [`plugins/agent-crew/`](plugins/agent-crew) | The plugin: agents, skills, hooks. Installed into Claude Code from this repository's marketplace. |
 | [`crew-contract/`](crew-contract) | The `.crew/` file format shared by the plugin and the extension: Zod schemas, readers, writers, tests. |
-| [`extension/`](extension) | The **Agent Crew** VS Code extension (publisher `whysargis`): setup, launch and progress of the crew. |
+| [`extension/`](extension) | The **Agent Crew** VS Code extension (publisher `whysargis`): installs Claude Code and the plugin, starts crew runs, shows progress and takes your answers — it never calls a model itself. |
 | `evals/` | Eval ideas, hidden acceptance tests and the runner (step 6). |
 | [`SPEC.md`](SPEC.md), [`PLAN.md`](PLAN.md), [`NOTES.md`](NOTES.md) | Spec, plan and implementation log. |
 

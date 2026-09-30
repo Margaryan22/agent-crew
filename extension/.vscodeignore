@@ -1,4 +1,4 @@
-# Everything is excluded unless re-included below: only bundles and resources ship.
+# Everything is excluded unless re-included below: only the bundle and resources ship.
 **
 
 !package.json
@@ -8,17 +8,10 @@
 !SUPPORT.md
 
 !dist/extension.js
-!dist/webview/**
-!dist/sdk/**
-!dist/bin/**
 !resources/**
 
 # Never ship sources, maps, tests or configs.
 **/*.ts
-**/*.tsx
 **/*.map
 **/tsconfig*.json
 **/.DS_Store
-
-# The plugin ships verbatim — whatever file types its hooks and skills need.
-!resources/plugin/**

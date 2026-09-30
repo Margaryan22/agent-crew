@@ -9,13 +9,9 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       // These modules need the VS Code API; the integration suite covers them.
-      exclude: ['src/extension.ts', 'src/secrets.ts', 'src/views/**', 'src/crew/watcher.ts'],
+      exclude: ['src/extension.ts', 'src/assistant.ts', 'src/views/**', 'src/crew/watcher.ts', 'src/log.ts'],
       reporter: ['text', 'html', 'json-summary'],
-      thresholds: {
-        'src/crew/parser.ts': { lines: 80, statements: 80, functions: 80, branches: 80 },
-        'src/agent/events.ts': { lines: 80, statements: 80, functions: 80, branches: 80 },
-        'src/license.ts': { lines: 80, statements: 80, functions: 80, branches: 80 },
-      },
+      thresholds: { lines: 90, statements: 90, functions: 90, branches: 80 },
     },
   },
 });

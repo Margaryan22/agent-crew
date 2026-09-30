@@ -1,9 +1,8 @@
 name: Release extension
 
-# Push a tag extension-vX.Y.Z matching extension/package.json. Rewritten for the universal
-# companion-mode VSIX in step E of PLAN.md. Odd minor (0.1.x, 0.3.x…) → pre-release,
-# even minor (0.2.x, 0.4.x…) → release. Everything is packaged on Linux so the bundled
-# Claude Code binary keeps its executable bit.
+# Push a tag extension-vX.Y.Z matching extension/package.json. One universal VSIX: the
+# extension has no native parts — the crew runs in the Claude Code extension.
+# Odd minor (0.1.x, 0.3.x…) → pre-release, even minor (0.2.x, 0.4.x…) → release.
 on:
   push:
     tags: ['extension-v*.*.*']
@@ -16,7 +15,7 @@ defaults:
     working-directory: extension
 
 jobs:
-  verify:
+  build:
     runs-on: ubuntu-latest
     outputs:
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -26,7 +25,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: extension/package-lock.json
+          cache-dependency-path: |
+            extension/package-lock.json
+            crew-contract/package-lock.json
       - id: version
         name: Check the tag against package.json
         run: |
@@ -36,35 +37,20 @@ jobs:
           fi
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           if [ $((MINOR % 2)) -eq 1 ]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+      - run: npm ci --prefix ../crew-contract
       - run: npm ci
       - run: npm run lint
       - run: npm run test:unit
-
-  package:
-    needs: verify
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        target: [linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: extension/package-lock.json
-      - run: npm ci
-      - name: Package ${{ matrix.target }}
-        run: node scripts/package.mjs --target ${{ matrix.target }}
+      - run: xvfb-run -a npm run test:integration
+      - run: node scripts/package.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: vsix-${{ matrix.target }}
+          name: vsix
           path: extension/vsix/*.vsix
           if-no-files-found: error
 
   publish:
-    needs: [verify, package]
+    needs: build
     runs-on: ubuntu-latest
     environment: marketplace
     permissions:
@@ -80,13 +66,12 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v4
         with:
-          pattern: vsix-*
+          name: vsix
           path: extension/vsix
-          merge-multiple: true
 
       # VS Code Marketplace: Microsoft Entra ID workload identity federation — no PAT.
       # Needs a managed identity / app registration with a federated credential for this repo's
-      # "marketplace" environment, added as a member of the Marketplace publisher (see NOTES.md).
+      # "marketplace" environment, added as a member of the Marketplace publisher (see extension/NOTES.md).
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
@@ -96,7 +81,7 @@ jobs:
       - name: Publish to the VS Code Marketplace
         run: |
           FLAGS=""
-          if [ "${{ needs.verify.outputs.prerelease }}" = "true" ]; then FLAGS="--pre-release"; fi
+          if [ "${{ needs.build.outputs.prerelease }}" = "true" ]; then FLAGS="--pre-release"; fi
           npx vsce publish --azure-credential --packagePath vsix/*.vsix $FLAGS
 
       # Open VSX (Cursor, Windsurf, VSCodium…)
@@ -105,5 +90,5 @@ jobs:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           FLAGS=""
-          if [ "${{ needs.verify.outputs.prerelease }}" = "true" ]; then FLAGS="--pre-release"; fi
+          if [ "${{ needs.build.outputs.prerelease }}" = "true" ]; then FLAGS="--pre-release"; fi
           npx ovsx publish --packagePath vsix/*.vsix -p "$OVSX_PAT" $FLAGS

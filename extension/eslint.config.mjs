@@ -3,7 +3,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'out/**', 'coverage/**', 'node_modules/**', 'resources/plugin/**', '.vscode-test/**', 'vsix/**'] },
+  { ignores: ['dist/**', 'out/**', 'coverage/**', 'node_modules/**', '.vscode-test/**', 'vsix/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -16,11 +16,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['webview/src/**/*.{ts,tsx}'],
-    languageOptions: { globals: { ...globals.browser } },
-  },
-  {
-    files: ['scripts/**/*.mjs', '*.mjs', '*.mts', 'webview/*.mts'],
+    files: ['scripts/**/*.mjs', '*.mjs', '*.mts'],
     rules: { 'no-console': 'off' },
   },
   {

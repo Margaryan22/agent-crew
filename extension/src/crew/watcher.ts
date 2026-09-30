@@ -1,7 +1,7 @@
 // Watches .crew/** and publishes a fresh snapshot after every burst of changes.
 
 import * as vscode from 'vscode';
-import type { Logger } from '../redact';
+import type { Logger } from '../log';
 import { type CrewSnapshot, EMPTY_SNAPSHOT } from './model';
 import { type CrewReader, loadSnapshot } from './snapshot';
 
