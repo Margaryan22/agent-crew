@@ -45,7 +45,7 @@ No critical or high-severity issue reaches `done`: every server entry point chec
 
 ## Критерий готовности
 
-- Every changed server function, route and form was checked against the security-review list, and `npm audit` (or the stack's scanner) was run; the decision is recorded with the crew CLI.
+- Every changed server function, route and form was checked against the security-review list, and the stack's dependency scanner was run; the decision is recorded with the crew CLI.
 
 ## Кому эскалирует
 

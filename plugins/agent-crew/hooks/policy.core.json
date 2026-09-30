@@ -171,6 +171,10 @@
     ],
     [
       "git",
+      "init"
+    ],
+    [
+      "git",
       "status"
     ],
     [
@@ -213,6 +217,9 @@
   "crewCommands": {
     "$comment": "Who may run which state-changing crew command. \"$stage\" means: only the agent named by --stage (qa or security). Commands not listed (show, list, next, check, start, submit, fail, escalate, …) are open to every agent.",
     "init": [
+      "orchestrator"
+    ],
+    "scaffold": [
       "orchestrator"
     ],
     "status set": [

@@ -32,7 +32,7 @@ Naming, small duplication, missing comments, style that the formatter does not e
 ## Writing the reject
 
 ```bash
-crew task reject T-004 --stage qa --error "npx playwright test e2e/booking.spec.ts: 'AC-02 booking a taken slot' fails — after the second booking the page shows the success toast; expected the message 'This time is no longer available' and no new row in /admin/appointments"
+crew task reject T-004 --stage qa --error "e2e test 'AC-02 booking a taken slot' (e2e/booking.spec.ts) fails — after the second booking the page shows the success toast; expected the message 'This time is no longer available' and no new row in /admin/appointments"
 ```
 
 One reject lists every blocking problem you found, most important first, each reproducible. Do not reject for non-blocking items.

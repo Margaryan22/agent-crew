@@ -127,3 +127,24 @@ describe('skills (SPEC §10)', () => {
     });
   }
 });
+
+describe('stack profiles (SPEC §4)', () => {
+  const STACK_TERMS = /tanstack|drizzle|playwright|vitest|postgres|tailwind|react|npm audit|npx /i;
+
+  it('core skills and agents are stack-agnostic', () => {
+    for (const s of skills.filter((x) => x.dir.startsWith('skills/core/'))) assert.doesNotMatch(s.body, STACK_TERMS, s.dir);
+    for (const a of agents) assert.doesNotMatch(a.body, STACK_TERMS, a.file);
+  });
+
+  for (const profile of manifest.userConfig.stack_profile.options) {
+    it(`${profile}: entry skill, policy and template exist`, () => {
+      assert.ok(skillNames.has(`${profile}-stack`), `skills/stacks/${profile}/${profile}-stack/SKILL.md`);
+      assert.ok(statSync(path.join(root, 'skills', 'stacks', profile, 'policy.json')).isFile());
+      assert.ok(statSync(path.join(root, 'templates', profile, 'package.json')).isFile());
+      assert.ok(statSync(path.join(root, 'templates', profile, 'CLAUDE.md')).isFile());
+      const stackSkills = skills.filter((s) => s.dir.startsWith(`skills/stacks/${profile}/`));
+      for (const s of stackSkills) assert.ok(s.name.startsWith(`${profile}-`), `${s.name}: stack skill names start with the profile`);
+      assert.ok(stackSkills.length >= 8, 'SPEC §10: structure, routes, schema, auth, forms, tables, reports, e2e');
+    });
+  }
+});

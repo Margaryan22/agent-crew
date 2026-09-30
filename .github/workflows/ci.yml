@@ -63,6 +63,45 @@ jobs:
       - name: Hook, CLI and content tests
         run: node --test 'plugins/agent-crew/hooks/test/*.test.mjs' 'plugins/agent-crew/cli/test/*.test.mjs' 'plugins/agent-crew/test/*.test.mjs'
 
+  template:
+    name: tanstack template
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    defaults:
+      run:
+        working-directory: plugins/agent-crew/templates/tanstack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: plugins/agent-crew/templates/tanstack/package-lock.json
+      - run: npm ci
+      # The database runs as a service container here instead of `npm run db:up`.
+      - run: cp .env.example .env && npm run db:migrate && npm run db:seed
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          CI: '1'
+      - run: npm run build
+
   extension:
     name: VS Code extension
     runs-on: ubuntu-latest

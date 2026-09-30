@@ -19,7 +19,7 @@ Small-business tools hold client names, phones, money and schedules. The review 
 Read `docs/architecture.md`, the ADRs and the brief's roles. Write `.crew/reviews/architecture-security.md` with:
 
 1. Roles × actions: who may read/change each entity; where that check will live (server side, per request).
-2. Authentication: session handling, password storage (a slow hash such as argon2 or bcrypt), account enumeration, logout.
+2. Authentication: session handling, password storage (a slow hash such as scrypt, argon2 or bcrypt), account enumeration, logout.
 3. Data: personal data stored, retention, what is shown to whom, exports.
 4. Inputs: every form and server function validates on the server with a schema.
 5. Secrets and configuration: only in `.env`, never committed, never sent to the client.
@@ -37,7 +37,7 @@ End with `Verdict: pass` or `Verdict: changes required` and the must-fix list. T
    - state-changing actions use POST (or the framework's server functions), not GET;
    - errors do not leak stack traces, SQL or other users' data;
    - no secrets or real personal data in code, fixtures, logs or client code.
-3. Run the scanners the stack skill names (at least `npm audit --omit=dev --audit-level=high`) and a secret search over the task's files:
+3. Run the dependency scanner the stack skill names and a secret search over the task's files:
 
 ```bash
 git show --name-only --format= $(git log --format=%h --grep "^T-NNN:") | sort -u | xargs grep -nEi "(api[_-]?key|secret|password|token)\s*[:=]\s*['\"][^'\"]{8,}" || true

@@ -435,3 +435,23 @@ describe('validate, interview, id', () => {
     assert.match(errorHash('x'), /^[0-9a-f]{12}$/);
   });
 });
+
+describe('scaffold', () => {
+  it('copies the stack template without overwriting and creates .env', async () => {
+    const root = path.join(project(), 'Barber Shop');
+    mkdirSync(root);
+    await ok(root, ['init']);
+    writeFileSync(path.join(root, 'README.md'), '# Mine\n');
+    const out = await ok(root, ['scaffold']);
+    assert.match(out, /Copied \d+ files from the tanstack template and created \.env from \.env\.example\./);
+    assert.match(out, /Kept 1 existing file: README\.md/);
+    assert.equal(read(root, 'README.md'), '# Mine\n');
+    assert.equal(JSON.parse(read(root, 'package.json')).name, 'barber-shop');
+    assert.equal(read(root, '.env'), read(pluginRoot, 'templates/tanstack/.env.example'));
+    for (const f of ['src/routes/__root.tsx', 'src/server/session.server.ts', 'drizzle/0000_init.sql', '.gitignore', 'e2e/auth.spec.ts']) assert.ok(existsSync(path.join(root, f)), f);
+    assert.ok(!existsSync(path.join(root, 'node_modules')));
+    const again = await ok(root, ['scaffold']);
+    assert.match(again, /^Copied 0 files/);
+    await fails(root, ['scaffold', '--stack', 'rails'], 1, /no template for stack profile "rails"/);
+  });
+});

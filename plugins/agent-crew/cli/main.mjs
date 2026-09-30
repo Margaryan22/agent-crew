@@ -35,6 +35,7 @@ Escalations and decisions
 
 Project
   crew init [--stack tanstack] [--language ru]     crew config
+  crew scaffold [--stack tanstack]                 copy the stack's project template (never overwrites)
   crew status show                                 crew status set phase=P [active_tasks=T-1,T-2] [--summary S] [--body …]
   crew check                                       budget cap, task budgets, edit flip-flops, escalations
   crew budget        crew summary        crew validate [files…]
@@ -67,6 +68,7 @@ const ROUTES = {
   'decision new': esc.decisionNew,
   'decision list': esc.decisionList,
   init: report.init,
+  scaffold: report.scaffold,
   config: report.config,
   'status show': report.statusShow,
   'status set': report.statusSet,

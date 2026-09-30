@@ -1,13 +1,15 @@
 {
-  "$comment": "Hook policy for the tanstack stack profile (TanStack Start + Drizzle + PostgreSQL + Playwright + Vitest). Merged on top of hooks/policy.core.json.",
+  "$comment": "Hook policy for the tanstack stack profile (TanStack Start + Drizzle + PostgreSQL + Playwright + Vitest; layout of templates/tanstack). Merged on top of hooks/policy.core.json.",
   "zones": {
     "frontend": [
       "src/routes/**",
       "src/components/**",
       "src/hooks/**",
-      "src/styles/**",
+      "src/styles.css",
       "src/router.tsx",
       "src/routeTree.gen.ts",
+      "src/lib/text.ts",
+      "src/lib/format.ts",
       "public/**"
     ],
     "backend": [
@@ -31,11 +33,15 @@
     ],
     "architect": [
       "package.json",
+      "package-lock.json",
       "tsconfig.json",
       "vite.config.ts",
-      "app.config.ts",
+      "tsr.config.json",
+      "eslint.config.js",
+      "prettier.config.js",
       "docker-compose.yml",
       ".env.example",
+      ".gitignore",
       "README.md",
       "CLAUDE.md",
       "AGENTS.md",
@@ -68,8 +74,6 @@
       "pg",
       "@types/pg",
       "zod",
-      "better-auth",
-      "argon2",
       "tailwindcss",
       "@tailwindcss/vite",
       "clsx",
@@ -85,7 +89,9 @@
       "prettier",
       "eslint",
       "@eslint/js",
-      "typescript-eslint"
+      "typescript-eslint",
+      "@tanstack/router-cli",
+      "@tanstack/eslint-config"
     ]
   },
   "safeCommands": [
@@ -125,6 +131,14 @@
       "docker",
       "compose",
       "exec"
+    ],
+    [
+      "npx",
+      "tsx"
+    ],
+    [
+      "npx",
+      "tsr"
     ]
   ]
 }

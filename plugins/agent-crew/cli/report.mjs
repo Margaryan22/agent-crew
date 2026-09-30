@@ -1,7 +1,7 @@
 // Project-level commands: init, config, status, next, check (stuck detectors of SPEC §8 that
 // need the whole project), budget, summary, validate, interview, id.
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parsePairs, UsageError } from './args.mjs';
@@ -51,6 +51,63 @@ export async function init(project, args, io) {
     await project.write(C.CREW_PATHS.status, C.renderStatus({ phase: 'interview', updated_at: project.now(), summary: 'Project started.' }, '# Status\n\nProject started.\n'));
   }
   io.log(`Initialised .crew/ (stack ${manifest.stack_profile}${language ? `, language ${language}` : ''}).`);
+}
+
+const SCAFFOLD_SKIP = new Set(['node_modules', '.output', 'dist', 'test-results', 'playwright-report', '.tanstack', '.DS_Store']);
+
+function templateFiles(dir, base = dir) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    if (SCAFFOLD_SKIP.has(name)) continue;
+    const abs = path.join(dir, name);
+    if (statSync(abs).isDirectory()) out.push(...templateFiles(abs, base));
+    else out.push(path.relative(base, abs));
+  }
+  return out.sort();
+}
+
+/**
+ * Copies the stack profile's project template into the project root. Existing files are never
+ * overwritten (they are listed instead), so it is safe in a folder that already has work in it.
+ */
+export async function scaffold(project, args, io) {
+  const stack = args.str('stack') ?? project.manifest()?.stack_profile ?? project.config().stackProfile;
+  args.done();
+  const templateDir = path.join(pluginRoot, 'templates', stack);
+  if (!existsSync(templateDir)) throw new UsageError(`no template for stack profile "${stack}" (${templateDir})`);
+  const copied = [];
+  const skipped = [];
+  for (const rel of templateFiles(templateDir)) {
+    const dest = path.join(project.root, rel);
+    if (existsSync(dest)) {
+      skipped.push(rel.split(path.sep).join('/'));
+      continue;
+    }
+    let content = readFileSync(path.join(templateDir, rel));
+    if (rel === 'package.json') {
+      const pkg = JSON.parse(content.toString('utf8'));
+      pkg.name = C.slugify(path.basename(project.root)) || pkg.name;
+      content = Buffer.from(`${JSON.stringify(pkg, null, 2)}\n`);
+    }
+    mkdirSync(path.dirname(dest), { recursive: true });
+    writeFileSync(dest, content);
+    copied.push(rel);
+  }
+  const envExample = path.join(project.root, '.env.example');
+  let envCreated = false;
+  if (!existsSync(path.join(project.root, '.env')) && existsSync(envExample)) {
+    writeFileSync(path.join(project.root, '.env'), readFileSync(envExample));
+    envCreated = true;
+  }
+  io.log(
+    [
+      `Copied ${copied.length} files from the ${stack} template${envCreated ? ' and created .env from .env.example' : ''}.`,
+      skipped.length ? `Kept ${skipped.length} existing file${skipped.length > 1 ? 's' : ''}: ${skipped.slice(0, 10).join(', ')}${skipped.length > 10 ? ', …' : ''}` : '',
+      'Next: follow the Setup section of the stack skill (install, database, browsers).',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
 }
 
 async function ensureGitignore(project) {
