@@ -1,7 +1,7 @@
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import {
   artefactKind,
   CONFIG_DEFAULTS,
@@ -165,8 +165,18 @@ describe('checklist and interview', () => {
 });
 
 describe('node helpers', () => {
+  const dirs: string[] = [];
+  const tempDir = (prefix: string): string => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), prefix));
+    dirs.push(dir);
+    return dir;
+  };
+  afterAll(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+
   it('allocates unique ids under concurrent writers', async () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'crew-ids-'));
+    const dir = tempDir('crew-ids-');
     const results = await Promise.all(Array.from({ length: 12 }, (_, i) => createWithNextId(dir, 'escalation', (id) => `${id} ${i}\n`)));
     const ids = results.map((r) => r.id).sort();
     expect(new Set(ids).size).toBe(12);
@@ -177,7 +187,7 @@ describe('node helpers', () => {
   });
 
   it('gives up after maxAttempts and rethrows other errors', async () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'crew-ids-'));
+    const dir = tempDir('crew-ids-');
     await expect(createWithNextId(dir, 'task', () => 'x', { fileName: () => 'same.md', maxAttempts: 2 }).then(() => createWithNextId(dir, 'task', () => 'x', { fileName: () => 'same.md', maxAttempts: 2 }))).rejects.toThrow(
       'after 2 attempts',
     );
@@ -185,7 +195,7 @@ describe('node helpers', () => {
   });
 
   it('appends JSON lines and writes atomically', async () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'crew-io-'));
+    const dir = tempDir('crew-io-');
     await appendJsonLine(path.join(dir, 'logs', 'a.jsonl'), { a: 1 });
     await appendJsonLine(path.join(dir, 'logs', 'a.jsonl'), { b: 2 });
     expect(readFileSync(path.join(dir, 'logs', 'a.jsonl'), 'utf8')).toBe('{"a":1}\n{"b":2}\n');

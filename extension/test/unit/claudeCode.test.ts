@@ -1,11 +1,17 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { claudeConfigDir, pluginInstalled, pluginInstallUri } from '../../src/claudeCode';
+
+const dirs: string[] = [];
+afterAll(() => {
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+});
 
 function configDir(files: Record<string, unknown>): string {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'crew-claude-'));
+  dirs.push(dir);
   for (const [rel, value] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
     writeFileSync(path.join(dir, rel), typeof value === 'string' ? value : JSON.stringify(value));
