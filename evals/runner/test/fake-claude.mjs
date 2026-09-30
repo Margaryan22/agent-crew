@@ -9,6 +9,14 @@ import { fileURLToPath } from 'node:url';
 
 const evals = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const argv = process.argv.slice(2);
+
+// The runner's sign-in check; FAKE_CLAUDE_AUTH=none plays a profile nobody signed in to.
+if (argv[0] === 'auth' && argv[1] === 'status') {
+  const loggedIn = process.env.FAKE_CLAUDE_AUTH !== 'none';
+  process.stdout.write(`${JSON.stringify({ loggedIn, authMethod: loggedIn ? 'fake' : 'none', apiProvider: 'firstParty' })}\n`);
+  process.exit(loggedIn ? 0 : 1);
+}
+
 const prompt = argv[argv.indexOf('-p') + 1] ?? '';
 const plugin = argv.includes('--plugin-dir');
 const resume = argv.includes('--resume') ? argv[argv.indexOf('--resume') + 1] : undefined;

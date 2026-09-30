@@ -5,7 +5,7 @@ import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as C from '../../../plugins/agent-crew/lib/crew-contract.mjs';
-import { ALLOWED_TOOLS, claudeArgs, claudeEnv, parseResult } from '../lib/claude.mjs';
+import { ALLOWED_TOOLS, authProblem, claudeArgs, claudeEnv, parseResult } from '../lib/claude.mjs';
 import { appendRow, COLUMNS, csvLine } from '../lib/csv.mjs';
 import { countTests, summarize } from '../lib/hidden.mjs';
 import { baselinePrompt, interviewFile, loadIdeas, parseIdea, pluginPrompt } from '../lib/ideas.mjs';
@@ -88,6 +88,23 @@ describe('claude invocation', () => {
     const baseline = claudeEnv({ PATH: '/bin' }, { mode: 'baseline', auth: 'api-key', capUsd: 20, composeProject: 'p' });
     assert.equal(baseline.CREW_HOST, undefined);
     assert.equal(baseline.CLAUDE_CONFIG_DIR, undefined);
+  });
+
+  it('passes on only the credentials --auth names', () => {
+    const base = { PATH: '/bin', ANTHROPIC_API_KEY: 'k', ANTHROPIC_AUTH_TOKEN: 't', CLAUDE_CODE_OAUTH_TOKEN: 'o', CLAUDE_CODE_USE_BEDROCK: '1' };
+    const sub = claudeEnv(base, { mode: 'plugin', auth: 'subscription', configDir: '/c', capUsd: 20, composeProject: 'p' });
+    assert.deepEqual([sub.ANTHROPIC_API_KEY, sub.ANTHROPIC_AUTH_TOKEN, sub.CLAUDE_CODE_OAUTH_TOKEN, sub.CLAUDE_CODE_USE_BEDROCK], [undefined, undefined, 'o', '1']);
+    const key = claudeEnv(base, { mode: 'plugin', auth: 'api-key', capUsd: 20, composeProject: 'p' });
+    assert.deepEqual([key.ANTHROPIC_API_KEY, key.CLAUDE_CODE_OAUTH_TOKEN], ['k', undefined]);
+  });
+
+  it('explains why the runs could not sign in', () => {
+    const o = { auth: 'subscription', apiKey: false, bin: 'claude', configDir: '/evals/.claude-config' };
+    assert.match(authProblem(undefined, o), /is Claude Code installed/);
+    assert.match(authProblem({ loggedIn: false, authMethod: 'none' }, o), /CLAUDE_CONFIG_DIR=\/evals\/\.claude-config claude, then \/login.*setup-token/);
+    assert.equal(authProblem({ loggedIn: true, authMethod: 'claude.ai' }, o), undefined);
+    assert.match(authProblem({ loggedIn: true }, { ...o, auth: 'api-key' }), /needs ANTHROPIC_API_KEY/);
+    assert.equal(authProblem({ loggedIn: true }, { ...o, auth: 'api-key', apiKey: true }), undefined);
   });
 
   it('parses the JSON result, also after other output', () => {
@@ -246,5 +263,16 @@ describe('command line', () => {
     lines.length = 0;
     assert.equal(await main(['--ideas', 'bakery,warehouse', '--modes', 'plugin', '--budget', '3'], (s) => lines.push(s)), 1);
     assert.match(lines.at(-1), /Nothing started/);
+  });
+
+  it('checks the sign-in before any setup', async () => {
+    const lines = [];
+    process.env.FAKE_CLAUDE_AUTH = 'none';
+    try {
+      await assert.rejects(main(['--ideas', 'bakery', '--yes', '--claude', path.join(evals, 'runner', 'test', 'fake-claude.mjs')], (s) => lines.push(s)), /not signed in/);
+    } finally {
+      delete process.env.FAKE_CLAUDE_AUTH;
+    }
+    assert.ok(!lines.some((l) => l.includes('▶')));
   });
 });

@@ -14,7 +14,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, write
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { claudeArgs, claudeEnv, runClaude } from './lib/claude.mjs';
+import { authProblem, authStatus, claudeArgs, claudeEnv, runClaude } from './lib/claude.mjs';
 import { appendRow } from './lib/csv.mjs';
 import { countTests, installHiddenTests, runHiddenTests } from './lib/hidden.mjs';
 import { interviewFile, loadIdeas } from './lib/ideas.mjs';
@@ -64,11 +64,7 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   const ideas = loadIdeas(path.join(evalsDir, 'ideas'), o.ideas);
   const plan = ideas.flatMap((idea) => o.modes.map((mode) => ({ idea, mode })));
   log(`Agent Crew eval: ${plan.length} run${plan.length > 1 ? 's' : ''} (${ideas.map((i) => i.id).join(', ')} × ${o.modes.join(', ')}), model ${o.model}, up to $${o.budget} each — at most $${(o.budget * plan.length).toFixed(2)} in total.`);
-  if (o.auth === 'subscription') {
-    log(`Auth: the Claude subscription signed in under ${o.configDir}${existsSync(o.configDir) ? '' : ' (not found — run: CLAUDE_CONFIG_DIR=' + o.configDir + ' claude, then /login)'}.`);
-  } else {
-    log('Auth: ANTHROPIC_API_KEY with --bare.');
-  }
+  log(o.auth === 'subscription' ? `Auth: the Claude subscription signed in under ${o.configDir}; API keys in the environment are not passed on.` : 'Auth: ANTHROPIC_API_KEY with --bare.');
   if (o.dryRun) {
     for (const { idea, mode } of plan) log(`  ${idea.id} / ${mode}`);
     return 0;
@@ -77,8 +73,11 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
     log('Nothing started. Every run calls the model; pass --yes to confirm the spend above (or --dry-run to see the plan).');
     return 1;
   }
-  if (o.auth === 'subscription' && !existsSync(o.configDir)) throw new Error(`no signed-in Claude Code config at ${o.configDir}`);
-  if (o.auth === 'api-key' && !process.env.ANTHROPIC_API_KEY) throw new Error('--auth api-key needs ANTHROPIC_API_KEY');
+  // A free check before any setup: without it every run would fail on its own, one after another.
+  const status = authStatus(o.claude, claudeEnv(process.env, { mode: 'baseline', auth: o.auth, configDir: o.configDir, composeProject: 'crew-eval-auth' }));
+  const problem = authProblem(status, { auth: o.auth, apiKey: Boolean(process.env.ANTHROPIC_API_KEY), bin: o.claude, configDir: o.configDir });
+  if (problem) throw new Error(problem);
+  if (o.auth === 'subscription') log(`Signed in: ${status.authMethod}${status.apiProvider && status.apiProvider !== 'firstParty' ? ` via ${status.apiProvider}` : ''}.`);
 
   const started = new Date();
   const runId = stamp(started);

@@ -45,7 +45,11 @@ The crew loads a copy of the plugin in the temp folder, so no agent can read the
 CLAUDE_CONFIG_DIR=evals/.claude-config claude     # then /login
 ```
 
-`api-key` uses `ANTHROPIC_API_KEY` with `--bare` (the project's `CLAUDE.md` is passed to both modes explicitly).
+or export `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`. In this mode `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the runs' environment, so a key set in your shell is never billed instead of the subscription.
+
+`api-key` uses `ANTHROPIC_API_KEY` with `--bare` (the project's `CLAUDE.md` is passed to both modes explicitly); the subscription token is removed instead.
+
+Before any setup, the runner checks the sign-in with `claude auth status` (no model call) and stops with instructions if it fails.
 
 Needs Node.js 22+, Docker running, and about 1 GB of disk per run while it runs.
 

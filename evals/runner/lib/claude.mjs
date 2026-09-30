@@ -1,7 +1,7 @@
 // One headless Claude Code call, the same way for both modes: same model, permission mode, tool
 // grants and budget; the plugin mode only adds --plugin-dir and CREW_HOST.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 /** Tools both modes may use without a prompt (nothing else is approved in an unattended run). */
 export const ALLOWED_TOOLS = [
@@ -47,16 +47,25 @@ export function claudeArgs(o) {
 
 /**
  * Environment for the child: the caller's, without variables that would make it think it runs
- * inside another Claude Code session, plus the crew's host settings.
+ * inside another Claude Code session, plus the crew's host settings. Credentials follow --auth
+ * strictly: a subscription run never sees an API key (Claude Code would bill the key instead),
+ * and an API-key run never sees a subscription token.
  * @param {NodeJS.ProcessEnv} base
  */
 export function claudeEnv(base, o) {
   const env = {};
   for (const [k, v] of Object.entries(base)) {
-    if (k === 'CLAUDECODE' || k.startsWith('CLAUDE_CODE_') || k.startsWith('CREW_') || k === 'CLAUDE_CONFIG_DIR') continue;
+    if (k === 'CLAUDECODE' || k.startsWith('CREW_') || k === 'CLAUDE_CONFIG_DIR') continue;
+    if (k.startsWith('CLAUDE_CODE_') && !AUTH_AND_PROVIDER.has(k)) continue;
     env[k] = v;
   }
-  if (o.auth === 'subscription') env.CLAUDE_CONFIG_DIR = o.configDir;
+  if (o.auth === 'subscription') {
+    env.CLAUDE_CONFIG_DIR = o.configDir;
+    delete env.ANTHROPIC_API_KEY;
+    delete env.ANTHROPIC_AUTH_TOKEN;
+  } else {
+    delete env.CLAUDE_CODE_OAUTH_TOKEN;
+  }
   if (o.mode === 'plugin') {
     env.CREW_HOST = 'eval';
     env.CREW_BUDGET_CAP_USD = String(o.capUsd);
@@ -65,6 +74,29 @@ export function claudeEnv(base, o) {
   // Background subagents may idle a while; let -p wait for them.
   env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = String(30 * 60 * 1000);
   return env;
+}
+
+/** Claude Code variables that choose credentials or the model provider; all others describe a parent session. */
+const AUTH_AND_PROVIDER = new Set(['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY']);
+
+/** `claude auth status --json` with the runs' environment — free, no model call. */
+export function authStatus(bin, env) {
+  const r = spawnSync(bin, ['auth', 'status', '--json'], { env, encoding: 'utf8', timeout: 60_000 });
+  try {
+    return JSON.parse(r.stdout);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Why the runs could not authenticate, or undefined when they can. */
+export function authProblem(status, o) {
+  if (!status) return `could not run "${o.bin} auth status --json" — is Claude Code installed? (--claude <path> points to it)`;
+  if (o.auth === 'api-key') return o.apiKey ? undefined : '--auth api-key needs ANTHROPIC_API_KEY in the environment.';
+  if (!status.loggedIn) {
+    return `the eval profile is not signed in. Once: CLAUDE_CONFIG_DIR=${o.configDir} claude, then /login — or export CLAUDE_CODE_OAUTH_TOKEN from "claude setup-token".`;
+  }
+  return undefined;
 }
 
 /** The result object Claude Code prints last with --output-format json. */
