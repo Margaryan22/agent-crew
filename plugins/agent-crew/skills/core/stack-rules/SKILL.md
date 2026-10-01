@@ -109,7 +109,7 @@ The hooks give every agent its write zone from this file, auto-approve the comma
 }
 ```
 
-- **zones** — only for `frontend`, `backend`, `db`, `qa` and `architect`; globs relative to the project, never the whole project, never inside `.crew/` or `.git/`. Every source folder has exactly one owner, except shared settings files. A folder nobody owns cannot be written by anyone.
+- **zones** — give `frontend`, `backend` and `db` a unit-test folder for their own code as well (they work test-first); the end-to-end tests are QA's. Zones exist only for `frontend`, `backend`, `db`, `qa` and `architect`; globs relative to the project, never the whole project, never inside `.crew/` or `.git/`. Every source folder has exactly one owner, except shared settings files. A folder nobody owns cannot be written by anyone.
 - **safeCommands** — command prefixes of the stack's own build, test and package tools, with the subcommand (`["<tool>", "test"]`, not `["<tool>"]`). Destructive commands, secrets and protected branches stay under the plugin's core rules whatever you list.
 - **packages.allow** — the packages the stack uses; anything else is checked against the registry before it can be installed.
 

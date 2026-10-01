@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-export const CREW_COMMANDS = ['new-project', 'feature', 'continue', 'fix'];
+export const CREW_COMMANDS = ['new-project', 'feature', 'continue', 'fix', 'deploy'];
 
 export function markerPath(root, sessionId) {
   return path.join(root, '.crew', 'sessions', `${String(sessionId).replace(/[^\w.-]/g, '_')}.json`);

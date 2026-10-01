@@ -192,6 +192,10 @@ function checkGitWorktree(args, role) {
       return [`git ${sub} rewrites history; crew runs never rewrite history`];
     case 'worktree':
       return lead || ['list'].includes(rest[0]) ? [] : ['only the orchestrator manages worktrees'];
+    case 'merge':
+      // The orchestrator brings a finished task's worktree branch into the run's branch.
+      if (has('--abort', '--continue', '--quit')) return lead ? [] : ['only the orchestrator merges branches'];
+      return lead ? [] : ['only the orchestrator merges branches; commit on your own branch and report it'];
     default:
       return [];
   }
@@ -467,6 +471,10 @@ function evaluateWrite(tool, toolInput, role, cwd, ctx, input) {
     return reasons.length ? { decision: 'deny', reasons, role } : { decision: 'none', reasons, role };
   }
   const rel = toPosix(path.relative(ctx.root, abs));
+  if (ctx.stateRoot && ctx.stateRoot !== ctx.root && (rel === '.crew' || rel.startsWith('.crew/'))) {
+    // An executor's own worktree has a checked-out copy of .crew/; the run's state is the main checkout's.
+    return { decision: 'deny', reasons: [`${rel} here is a copy: the crew's state lives in the main checkout. Change it with the crew CLI (crew task submit --note …, crew task fail --error …), which writes there`], role };
+  }
   if (isEnvSecretFile(abs)) {
     const text = tool === 'Write' ? String(toolInput.content ?? '') : tool === 'MultiEdit' ? (toolInput.edits ?? []).map((e) => e?.new_string ?? '').join('\n') : String(toolInput.new_string ?? '');
     const keys = secretKeysIn(text);

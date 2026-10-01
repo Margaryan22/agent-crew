@@ -49,7 +49,7 @@ const agents = readdirSync(path.join(root, 'agents'))
 const list = (v) => (Array.isArray(v) ? v : String(v ?? '').split(',')).map((s) => String(s).trim()).filter(Boolean);
 
 describe('agents (SPEC §5)', () => {
-  it('are the nine crew roles; the orchestrator is the main session', () => {
+  it('are the ten crew roles; the orchestrator is the main session', () => {
     assert.deepEqual(agents.map((a) => a.data.name).sort(), KNOWN_AGENTS.filter((a) => a !== 'orchestrator').slice().sort());
   });
 
@@ -120,7 +120,7 @@ describe('skills (SPEC §10)', () => {
 
   it('core has the curated library', () => {
     const core = skills.filter((s) => s.dir.startsWith('skills/core/')).map((s) => s.name).sort();
-    assert.deepEqual(core, ['acceptance-tests', 'brief', 'code-review', 'crew-files', 'git-process', 'interview', 'orchestration', 'security-review', 'stack-rules', 'stuck-detection']);
+    assert.deepEqual(core, ['acceptance-tests', 'brief', 'code-review', 'crew-files', 'git-process', 'interview', 'orchestration', 'security-review', 'stack-rules', 'stuck-detection', 'test-first', 'ui-design']);
   });
 
   for (const s of skills) {

@@ -7,6 +7,8 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { lessonsFor, LESSONS_FILE } from '../../lib/lessons.mjs';
+import { linkedWorktree, mainCheckout } from '../../lib/worktree.mjs';
 import { projectPolicyProblems as projectPolicyProblemsOf } from './lib/policy.mjs';
 import { ensureCrewGitignore, isCrewCommand, isCrewSession, markerPath, pluginName } from './lib/session.mjs';
 
@@ -60,12 +62,23 @@ function rememberedModel(env, sessionId) {
   }
 }
 
-/** @param {{ stack: string, payPerUse?: string }} session */
+/**
+ * What earlier runs learned, for this role. It is the crew's own past advice, not an instruction
+ * from the user: the brief, the stack rules and the policy win over it.
+ */
+function lessonLines(role, root, dataDir, max) {
+  const files = [dataDir ? path.join(dataDir, LESSONS_FILE) : undefined, path.join(root, '.crew', LESSONS_FILE)].filter(Boolean);
+  const lessons = lessonsFor(role, files, max);
+  if (!lessons.length) return [];
+  return [`Lessons from earlier crew runs (advice from past mistakes; the brief, the stack rules and the policy come first):`, ...lessons.map((l) => `  · ${role === 'orchestrator' && l.role !== 'all' ? `${l.role}: ` : ''}${l.text}`)];
+}
+
+/** @param {{ stack: string, payPerUse?: string, dataDir?: string }} session */
 function contextBlock(contract, config, root, session) {
   const lines = [
     'Agent Crew session. You are the orchestrator: follow the agent-crew:orchestration skill (and agent-crew:stuck-detection when something is stuck); delegate the work to the agent-crew:* agents.',
     'Project state lives in .crew/ (tasks, escalations, decisions, status); change it with the `crew` CLI (`crew help`), which writes files that match the contract.',
-    `Crew config: autonomy=${config.autonomy}, stack_profile=${session.stack}, budget_cap_usd=${config.budgetCapUsd}${config.budgetCapUsd === 0 ? ' (no spending cap)' : ''}, model_tier=${config.modelTier}, review_depth=${config.reviewDepth}, brief_review_minutes=${config.briefReviewMinutes}, host=${config.host}.`,
+    `Crew config: autonomy=${config.autonomy}, stack_profile=${session.stack}, budget_cap_usd=${config.budgetCapUsd}${config.budgetCapUsd === 0 ? ' (no spending cap)' : ''}, model_tier=${config.modelTier}, review_depth=${config.reviewDepth}, parallel_tasks=${config.parallelTasks}, brief_review_minutes=${config.briefReviewMinutes}, host=${config.host}.`,
   ];
   // A cap matters only where spend is real money; on a subscription nobody is asked about it.
   if (config.budgetCapUsd === 0 && session.payPerUse) {
@@ -73,6 +86,7 @@ function contextBlock(contract, config, root, session) {
       `Billing: this session is paid per use (${session.payPerUse}) and no spending cap is set. Before the first phase tell the human so in one line — the cap is the plugin's "Spending cap" setting (/plugin → agent-crew → Configure) — then continue without waiting.`,
     );
   }
+  lines.push(...lessonLines('orchestrator', root, session.dataDir, 12));
   try {
     const status = contract.readStatus(readFileSync(path.join(root, '.crew', 'status.md'), 'utf8')).value;
     if (status.phase) lines.push(`Current phase: ${status.phase}${status.summary ? ` — ${status.summary}` : ''}`);
@@ -142,7 +156,7 @@ async function updateTaskEstimate(contract, root, taskId) {
 async function sessionFacts(config, root, env, model) {
   const { loadPolicy, stackOf, payPerUseReason } = await import('./lib/policy.mjs');
   const stack = stackOf(root, config);
-  return { stack, payPerUse: config.host === 'interactive' ? payPerUseReason(env, model, loadPolicy(pluginRoot, stack)) : undefined };
+  return { stack, dataDir: env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA, payPerUse: config.host === 'interactive' ? payPerUseReason(env, model, loadPolicy(pluginRoot, stack)) : undefined };
 }
 
 /** Tells the architect at once which entries of a just-written .crew/policy.json the hooks will ignore. */
@@ -160,7 +174,11 @@ function projectPolicyFeedback(input, policy) {
 
 /** @returns {Promise<object | undefined>} hook output */
 export async function handle(event, input, env = process.env) {
-  const root = path.resolve(env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
+  // The project is the main checkout, also for an executor working in its own git worktree.
+  const root = mainCheckout(path.resolve(env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd()));
+  // …whose files, though, are judged relative to that worktree.
+  const tree = linkedWorktree(path.resolve(input.cwd || root));
+  const fileRoot = tree && tree.main === mainCheckout(root) ? tree.worktree : root;
   const now = new Date().toISOString();
 
   if (event === 'UserPromptExpansion') {
@@ -177,6 +195,8 @@ export async function handle(event, input, env = process.env) {
       started_at: now,
       assistant,
       ...(input.transcript_path ? { transcript_path: String(input.transcript_path) } : {}),
+      // Where the plugin keeps its data: the crew CLI, run through Bash, is not told otherwise.
+      ...(env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA ? { data_dir: String(env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA) } : {}),
       config,
     });
     await contract.writeFileAtomic(marker, text);
@@ -197,7 +217,8 @@ export async function handle(event, input, env = process.env) {
 
   if (event === 'SubagentStart') {
     if (!String(input.agent_type ?? '').startsWith(`${pluginName(pluginRoot)}:`)) return undefined;
-    return { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: subagentContext(config, root, input.agent_type) } };
+    const lessons = lessonLines(String(input.agent_type).split(':').pop(), root, env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA, 6);
+    return { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: [subagentContext(config, root, input.agent_type), ...lessons].join('\n') } };
   }
 
   if (event === 'PreToolUse') {
@@ -208,7 +229,7 @@ export async function handle(event, input, env = process.env) {
     const dataDir = env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA;
     const checkPackage = createRegistryChecker({ packages: policy.packages, ...(dataDir ? { cacheFile: path.join(dataDir, 'registry-cache.json') } : {}) });
     const readFile = (abs) => (existsSync(abs) ? readFileSync(abs, 'utf8') : undefined);
-    const verdict = await evaluatePreToolUse(input, { root, policy, checkPackage, currentBranch, parseFrontmatter: contract.parseFrontmatter, readFile });
+    const verdict = await evaluatePreToolUse(input, { root: fileRoot, stateRoot: root, policy, checkPackage, currentBranch, parseFrontmatter: contract.parseFrontmatter, readFile });
     const logEntry = {
       ts: now,
       session_id: String(input.session_id ?? 'unknown'),
@@ -228,7 +249,7 @@ export async function handle(event, input, env = process.env) {
 
   if (event === 'PostToolUse') {
     const { validateCrewWrite, editJournalEntries } = await import('./lib/after.mjs');
-    for (const entry of editJournalEntries(input, root, now)) {
+    for (const entry of editJournalEntries(input, fileRoot, now)) {
       await contract.appendJsonLine(path.join(root, '.crew', 'logs', 'edits.jsonl'), entry).catch(() => undefined);
     }
     const problem = validateCrewWrite(input, root, contract) ?? projectPolicyFeedback(input, loadPolicy(pluginRoot, stack));

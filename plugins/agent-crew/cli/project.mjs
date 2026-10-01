@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import * as C from '../lib/crew-contract.mjs';
+import { mainCheckout } from '../lib/worktree.mjs';
 import { UsageError } from './args.mjs';
 
 export { C };
@@ -14,7 +15,9 @@ export class StateError extends Error {}
 
 /** Walks up from `cwd` to the directory that holds `.crew/`. */
 export function findRoot(cwd) {
-  let dir = path.resolve(cwd);
+  // In an executor's own git worktree the checked-out .crew/ is a stale copy: the run's state is
+  // the main checkout's, and that is the one every crew command reads and writes.
+  let dir = path.resolve(mainCheckout(cwd));
   for (;;) {
     if (existsSync(path.join(dir, C.CREW_DIR)) && statSync(path.join(dir, C.CREW_DIR)).isDirectory()) return dir;
     const parent = path.dirname(dir);

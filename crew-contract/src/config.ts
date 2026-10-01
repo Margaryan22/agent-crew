@@ -12,6 +12,9 @@ export type ModelTier = 'economy' | 'balanced' | 'quality';
 export type ReviewDepth = 'every-task' | 'qa-only' | 'final-only';
 export const MODEL_TIERS = ['economy', 'balanced', 'quality'] as const;
 export const REVIEW_DEPTHS = ['every-task', 'qa-only', 'final-only'] as const;
+/** Where tasks that run at the same time work: in the one project folder, or each in its own git worktree. */
+export type ParallelTasks = 'same-folder' | 'worktrees';
+export const PARALLEL_TASKS = ['same-folder', 'worktrees'] as const;
 
 export interface CrewConfig {
   autonomy: Autonomy;
@@ -20,6 +23,7 @@ export interface CrewConfig {
   stackProfile: string;
   modelTier: ModelTier;
   reviewDepth: ReviewDepth;
+  parallelTasks: ParallelTasks;
   host: CrewHost;
 }
 
@@ -34,6 +38,7 @@ export const CONFIG_DEFAULTS: CrewConfig = {
   stackProfile: 'auto',
   modelTier: 'balanced',
   reviewDepth: 'every-task',
+  parallelTasks: 'same-folder',
   host: 'interactive',
 };
 
@@ -91,6 +96,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
   const oneOf = <T extends string>(values: readonly T[]) => (r: string) => ((values as readonly string[]).includes(r) ? (r as T) : undefined);
   const modelTier = pick<ModelTier>('MODEL_TIER', oneOf(MODEL_TIERS), CONFIG_DEFAULTS.modelTier);
   const reviewDepth = pick<ReviewDepth>('REVIEW_DEPTH', oneOf(REVIEW_DEPTHS), CONFIG_DEFAULTS.reviewDepth);
+  const parallelTasks = pick<ParallelTasks>('PARALLEL_TASKS', oneOf(PARALLEL_TASKS), CONFIG_DEFAULTS.parallelTasks);
 
   let host: Resolved<CrewHost> = { value: CONFIG_DEFAULTS.host, source: 'default' };
   const hostRaw = env.CREW_HOST?.trim();
@@ -106,6 +112,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       stackProfile: stackProfile.value,
       modelTier: modelTier.value,
       reviewDepth: reviewDepth.value,
+      parallelTasks: parallelTasks.value,
       host: host.value,
     },
     sources: {
@@ -115,6 +122,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       stackProfile: stackProfile.source,
       modelTier: modelTier.source,
       reviewDepth: reviewDepth.source,
+      parallelTasks: parallelTasks.source,
       host: host.source,
     },
     issues,

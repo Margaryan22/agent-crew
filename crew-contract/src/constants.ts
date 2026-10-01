@@ -5,7 +5,7 @@ export const CONTRACT_VERSION = 1;
 
 export const PLUGIN_NAME = 'agent-crew';
 
-export const KNOWN_AGENTS = ['orchestrator', 'pm', 'critic', 'architect', 'qa', 'frontend', 'backend', 'db', 'security', 'keeper'] as const;
+export const KNOWN_AGENTS = ['orchestrator', 'pm', 'critic', 'architect', 'designer', 'qa', 'frontend', 'backend', 'db', 'security', 'keeper'] as const;
 export type KnownAgent = (typeof KNOWN_AGENTS)[number];
 
 export const CREW_DIR = '.crew';

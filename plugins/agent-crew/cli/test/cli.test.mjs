@@ -445,6 +445,43 @@ describe('validate, interview, id', () => {
   });
 });
 
+describe('lessons', () => {
+  it('keeps a lesson in the project and in the plugin data, once', async () => {
+    const root = await started();
+    const data = project();
+    mkdirSync(path.join(root, '.crew', 'sessions'), { recursive: true });
+    writeFileSync(path.join(root, '.crew/sessions/s.json'), JSON.stringify({ started_at: '2026-10-01T10:00:00Z', data_dir: data }));
+    assert.match(await ok(root, ['lesson', 'add', '--for', 'frontend', '--text', '  Check every screen\nat phone width.  ']), /Lesson kept for frontend, also for later projects/);
+    assert.match(await ok(root, ['lesson', 'add', '--for', 'frontend', '--text', 'check every screen at phone width']), /already recorded/);
+    await ok(root, ['lesson', 'add', '--text', 'Read the stack rules first.']);
+    assert.match(read(root, '.crew/lessons.md'), /^- \[frontend\] Check every screen at phone width\. \(2026-09-29\)$/m);
+    assert.match(readFileSync(path.join(data, 'lessons.md'), 'utf8'), /- \[all\] Read the stack rules first\./);
+    assert.equal(await ok(root, ['lesson', 'list', '--for', 'db']), 'Read the stack rules first.'.replace(/^/, '[all] ') + '\n');
+    assert.equal((await json(root, ['lesson', 'list'])).length, 2);
+    await fails(root, ['lesson', 'add', '--text', ' '], 1, /needs --text/);
+    await fails(root, ['lesson', 'add', '--for', 'ceo', '--text', 'x'], 1, /--for must be one of/);
+  });
+});
+
+describe('git worktrees', () => {
+  it('reads and writes the main checkout\'s .crew/ from an executor\'s worktree', async () => {
+    const root = await started();
+    await ok(root, ['task', 'new', '--title', 'Form', '--owner', 'frontend']);
+    const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd, encoding: 'utf8' });
+    git(root, 'init', '-q');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'init');
+    const tree = path.join(project(), 'T-001');
+    assert.equal(git(root, 'worktree', 'add', '-q', '-b', 'crew-T-001', tree).status, 0);
+    // The worktree has its own checked-out copy of .crew/, but the state is the main checkout's.
+    assert.ok(existsSync(path.join(tree, '.crew', 'tasks', 'T-001.md')));
+    await ok(tree, ['task', 'start', 'T-001']);
+    assert.match(read(root, '.crew/tasks/T-001.md'), /status: in_progress/);
+    assert.match(read(tree, '.crew/tasks/T-001.md'), /status: todo/);
+    assert.match(await ok(path.join(tree, '.crew'), ['task', 'list']), /T-001\s+in_progress/);
+  });
+});
+
 describe('review depth', () => {
   const withDepth = (root, depth) => {
     mkdirSync(path.join(root, '.crew', 'sessions'), { recursive: true });

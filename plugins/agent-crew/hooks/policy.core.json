@@ -45,6 +45,10 @@
       ".crew/stack/**",
       ".crew/policy.json"
     ],
+    "designer": [
+      "docs/design.md",
+      "docs/design/**"
+    ],
     "keeper": [
       ".crew/status.md",
       ".crew/glossary.md"
@@ -220,6 +224,10 @@
     ],
     [
       "git",
+      "merge"
+    ],
+    [
+      "git",
       "worktree"
     ]
   ],
@@ -309,6 +317,9 @@
       "architect"
     ],
     "interview answer": [
+      "orchestrator"
+    ],
+    "lesson add": [
       "orchestrator"
     ]
   },

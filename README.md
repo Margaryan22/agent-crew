@@ -1,6 +1,6 @@
 # Agent Crew
 
-A crew of AI agents — PM, critic, architect, QA, frontend, backend, DB and security — that turns an idea for a small-business tool into a working, tested project. The crew runs inside your own AI assistant on your own subscription: Claude Code today, ChatGPT's Codex next.
+A crew of AI agents — PM, critic, architect, designer, QA, frontend, backend, DB and security — that turns an idea for a small-business tool into a working, tested project. The crew runs inside your own AI assistant on your own subscription: Claude Code today, ChatGPT's Codex next.
 
 > **Status: in development.** The plugin (agents, skills, hooks, commands, the `crew` CLI, the project template), the VS Code control panel (0.3.0 pre-release) and the eval harness are built and tested without a model. The first full runs with a real model are next; Codex support comes after them.
 
@@ -35,6 +35,7 @@ Requires Claude Code 2.1.271 or later and Node.js 22+. Nothing else: with the de
 | `/agent-crew:new-project <idea>` | In an empty folder: interview → brief (reviewed by a critic) → architecture and security review → acceptance tests → tasks → build with QA and security review per task → report in `.crew/report.md`. |
 | `/agent-crew:feature <what to add>` | In an existing crew-built project: the same pipeline for one feature, on a `crew/<feature>` branch. |
 | `/agent-crew:fix <what is wrong>` | The short path for a bug or a small change: a test that shows the problem, the fix, one review. No interview, brief or architecture. |
+| `/agent-crew:deploy [host]` | Get a finished project ready to go online: the hosting decision, deployment files, a production checklist, a security review and a step-by-step guide in `docs/deploy.md`. The crew prepares; you publish. |
 | `/agent-crew:continue [note]` | Pick a run up again — after a break, a usage limit, an answered question — in the same chat or a fresh one. Everything the run needs is in `.crew/`. |
 | `/agent-crew:status` | Where the run stands, what the crew needs from you, and spend. |
 
@@ -45,9 +46,19 @@ Settings (`/plugin` → agent-crew, or `claude plugin install … --config KEY=V
 | `stack_profile` | `auto` | `auto`: the crew picks the stack that fits the idea, or detects the one your project already uses, and writes rules for exactly those technologies. `tanstack`: a ready-made starter with rules that ship with the plugin. |
 | `model_tier` | `balanced` | `economy`: every agent on the lighter models, to stay inside a Pro plan's limits. `balanced`: architect, critic and security reviewer on the strongest model. `quality`: developers and QA on it too. |
 | `review_depth` | `every-task` | `qa-only`: QA after each task, one security review of the whole project at the end. `final-only`: one QA and security review at the end — fastest, for prototypes. |
+| `parallel_tasks` | `same-folder` | `worktrees`: tasks that run at the same time each get their own git worktree and branch, merged when done. |
 | `autonomy` | `full` | `review` waits for your approval of the brief. |
 | `budget_cap_usd` | `0` (no cap) | Only for pay-per-use sessions (API key, cloud provider, a model billed in usage credits). On a subscription leave it at 0: your plan's limits apply. |
 | `brief_review_minutes` | `10` | How long a host UI waits for the brief approval in `review` autonomy. |
+
+## How the crew works
+
+- **Test first.** QA writes an end-to-end test for every acceptance criterion before any feature code. Each developer then sees the tests of their task fail, writes unit tests for the logic, and only then the code; the reviewer rejects a task that cannot show red→green.
+- **A deliberate look.** A designer agent writes `docs/design.md` — colours, type, components, page layouts, states — before the first screen. In the final phase QA takes screenshots of every page at desktop and phone width, looks at each one, and turns layout problems into tasks.
+- **Two reviews.** QA and a security reviewer check each task (or less often — see `review_depth`).
+- **Enforced rules.** Hooks, not just instructions: each agent writes only its own folders, secrets stay out of files, unknown packages and dangerous commands are refused.
+- **It learns.** At the end of a run the orchestrator records what cost time (`crew lesson add`). Lessons are kept in the project and in the plugin's own data, and the agents they concern get them at the start of the next project.
+- **State on disk.** Everything is in `.crew/`, so a run survives a closed window or a usage limit: `/agent-crew:continue`.
 
 ## How the crew learns the stack
 

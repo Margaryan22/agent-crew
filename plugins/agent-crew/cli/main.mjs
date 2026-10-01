@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs, UsageError } from './args.mjs';
 import * as esc from './escalations.mjs';
+import * as lessons from './lessons.mjs';
 import { findRoot, NotFoundError, Project, StateError } from './project.mjs';
 import * as report from './report.mjs';
 import * as tasks from './tasks.mjs';
@@ -32,6 +33,8 @@ Escalations and decisions
   crew escalation resolve E-001 [--decision ADR-001]   crew escalation cancel E-001
   crew decision new --title T [--status accepted] [--source E-001] [--supersedes ADR-001] [--body …]
   crew decision list
+  crew lesson add --text "<one sentence>" [--for ROLE]   what to do differently next time (kept for later projects)
+  crew lesson list [--for ROLE]
 
 Project
   crew init [--stack tanstack] [--language ru]     crew config
@@ -68,6 +71,8 @@ const ROUTES = {
   'escalation cancel': esc.escalationCancel,
   'decision new': esc.decisionNew,
   'decision list': esc.decisionList,
+  'lesson add': lessons.lessonAdd,
+  'lesson list': lessons.lessonList,
   init: report.init,
   scaffold: report.scaffold,
   config: report.config,

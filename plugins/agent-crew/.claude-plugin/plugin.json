@@ -1,7 +1,7 @@
 {
   "name": "agent-crew",
   "displayName": "Agent Crew",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A crew of AI agents (PM, critic, architect, QA, frontend, backend, DB, security) that turns an idea for a small-business tool into a working, tested project, on the stack that fits it. All state lives in .crew/ in the project.",
   "author": {
     "name": "Margaryan22",
@@ -80,6 +80,16 @@
         "final-only"
       ],
       "default": "every-task"
+    },
+    "parallel_tasks": {
+      "type": "string",
+      "title": "Parallel tasks",
+      "description": "same-folder: tasks that run at the same time share the project folder and never touch the same files. worktrees: each gets its own git worktree and branch, merged when it is done — safer when tasks are close to each other, slower to start (every worktree installs the project's dependencies).",
+      "options": [
+        "same-folder",
+        "worktrees"
+      ],
+      "default": "same-folder"
     }
   }
 }

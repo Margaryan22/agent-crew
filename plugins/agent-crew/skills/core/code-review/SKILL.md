@@ -12,6 +12,7 @@ Review the task's commits (`git log --oneline --grep "^T-NNN:"`, `git show <sha>
 
 1. **Acceptance** — a criterion listed in the task is not met, or its e2e test fails.
 2. **Build** — type check, lint or unit tests fail; the app does not start.
+   **Tests first** — the task's logic has no test, or the submit note names no test that failed before the change and passes now (skill `test-first`). A test weakened, skipped or deleted to get to green is always a reject.
 3. **Regression** — a test that passed before the change fails now.
 4. **Data safety** — a migration can lose data; a destructive operation has no confirmation; writes are not validated on the server.
 5. **Permissions** — a route or server function lets a role do or see what the brief forbids (the security stage looks deeper, but obvious gaps are yours to catch).

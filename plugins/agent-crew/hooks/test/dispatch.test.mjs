@@ -96,9 +96,66 @@ describe('a plugin under a symlinked folder', () => {
   });
 });
 
+describe('an executor in its own git worktree (parallel_tasks=worktrees)', () => {
+  const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd, encoding: 'utf8' });
+
+  function projectWithWorktree() {
+    const root = tempProject();
+    mkdirSync(path.join(root, '.crew', 'tasks'), { recursive: true });
+    writeFileSync(path.join(root, '.crew', 'tasks', 'T-001.md'), '---\nid: T-001\n---\n');
+    mkdirSync(path.join(root, 'src', 'routes'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'routes', 'index.tsx'), 'x');
+    git(root, 'init', '-q');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'init');
+    const tree = path.join(tempDir('crew-hook-wt-'), 'T-001');
+    assert.equal(git(root, 'worktree', 'add', '-q', '-b', 'crew-T-001', tree).status, 0);
+    return { root, tree };
+  }
+
+  it('judges files relative to the worktree and keeps .crew/ in the main checkout', () => {
+    const { root, tree } = projectWithWorktree();
+    const pre = (tool_input, agent, tool = 'Write') =>
+      run('PreToolUse', { session_id: 's', cwd: tree, tool_name: tool, tool_input, agent_type: `agent-crew:${agent}` }, { root, env: { CREW_HOST: 'eval' } }).output.hookSpecificOutput;
+    // The frontend zone (src/routes/**) applies inside the worktree…
+    assert.equal(pre({ file_path: path.join(tree, 'src', 'routes', 'book.tsx'), content: 'x' }, 'frontend').permissionDecision, 'allow');
+    assert.match(pre({ file_path: path.join(tree, 'src', 'db', 'schema.ts'), content: 'x' }, 'frontend').permissionDecisionReason, /src\/db\/schema\.ts is outside that zone/);
+    // …its copy of .crew/ is not the run's state…
+    assert.match(pre({ file_path: path.join(tree, '.crew', 'tasks', 'T-001.md'), content: 'x' }, 'frontend').permissionDecisionReason, /is a copy: the crew's state lives in the main checkout/);
+    // …and the journal still goes to the main checkout.
+    assert.ok(existsSync(path.join(root, '.crew', 'logs', 'hooks.jsonl')));
+    assert.equal(existsSync(path.join(tree, '.crew', 'logs')), false);
+  });
+
+  it('lets only the orchestrator merge a finished task back', () => {
+    const { root, tree } = projectWithWorktree();
+    const bash = (command, extra = {}) => run('PreToolUse', { session_id: 's', tool_name: 'Bash', tool_input: { command }, ...extra }, { root, env: { CREW_HOST: 'eval' } }).output.hookSpecificOutput;
+    assert.equal(bash('git merge --no-ff crew-T-001 -m "merge T-001"').permissionDecision, 'allow');
+    assert.match(bash('git merge main', { cwd: tree, agent_type: 'agent-crew:frontend' }).permissionDecisionReason, /only the orchestrator merges branches/);
+  });
+});
+
+describe('lessons from earlier runs', () => {
+  it('reach the orchestrator and the agents they concern, from the project and from the plugin data', () => {
+    const root = tempProject();
+    const data = tempDir('crew-hook-data-');
+    mkdirSync(path.join(root, '.crew'), { recursive: true });
+    writeFileSync(path.join(data, 'lessons.md'), '# Lessons\n\n- [frontend] Check every screen at phone width before submitting. (2026-10-01)\n- [all] Read the stack rules before the first command. (2026-10-01)\n');
+    writeFileSync(path.join(root, '.crew', 'lessons.md'), '- [db] Add new variables to .env in the same task as .env.example. (2026-10-01)\n- not a lesson line\n');
+    const env = { CLAUDE_PLUGIN_DATA: data };
+    const main = run('UserPromptExpansion', { session_id: 'l1', command_name: 'agent-crew:new-project' }, { root, env }).output.hookSpecificOutput.additionalContext;
+    assert.match(main, /Lessons from earlier crew runs \(advice from past mistakes; the brief, the stack rules and the policy come first\)/);
+    for (const text of ['frontend: Check every screen at phone width', 'Read the stack rules before the first command', 'db: Add new variables to .env']) assert.ok(main.includes(text), text);
+    const sub = (agent) => run('SubagentStart', { session_id: 'l1', agent_type: `agent-crew:${agent}`, agent_id: 'a' }, { root, env }).output.hookSpecificOutput.additionalContext;
+    assert.ok(sub('frontend').includes('Check every screen at phone width') && sub('frontend').includes('Read the stack rules'));
+    assert.ok(!sub('frontend').includes('Add new variables'));
+    assert.ok(sub('db').includes('Add new variables') && !sub('db').includes('phone width'));
+  });
+});
+
 describe('crew commands', () => {
   it('continue and fix start a crew session like new-project and feature; status does not', () => {
-    for (const command of ['continue', 'fix', 'feature']) {
+    for (const command of ['continue', 'fix', 'feature', 'deploy']) {
       const root = tempProject();
       const out = run('UserPromptExpansion', { session_id: `s-${command}`, command_name: `agent-crew:${command}` }, { root }).output;
       assert.match(out.hookSpecificOutput.additionalContext, /Agent Crew session/, command);
@@ -204,15 +261,17 @@ describe('crew sessions', () => {
     assert.match(output.hookSpecificOutput.additionalContext, /autonomy=full, stack_profile=tanstack, budget_cap_usd=0 \(no spending cap\)/);
     assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /Billing:/);
     const marker = JSON.parse(readFileSync(path.join(root, '.crew', 'sessions', 'sess-1.json'), 'utf8'));
+    assert.ok(existsSync(marker.data_dir), 'the marker tells the crew CLI where the plugin keeps its data');
     assert.deepEqual(
-      { ...marker, started_at: 'x' },
+      { ...marker, started_at: 'x', data_dir: 'd' },
       {
+        data_dir: 'd',
         session_id: 'sess-1',
         command: 'agent-crew:new-project',
         started_at: 'x',
         assistant: 'claude-code',
         transcript_path: '/tmp/t.jsonl',
-        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', modelTier: 'balanced', reviewDepth: 'every-task', host: 'interactive' },
+        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', modelTier: 'balanced', reviewDepth: 'every-task', parallelTasks: 'same-folder', host: 'interactive' },
       },
     );
     assert.equal(readFileSync(path.join(root, '.crew', '.gitignore'), 'utf8'), 'logs/\nsessions/\n');
