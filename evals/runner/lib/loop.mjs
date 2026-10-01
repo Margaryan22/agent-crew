@@ -91,11 +91,19 @@ export async function runConversation(o) {
       break;
     }
     state.sessionId = r.result.session_id ?? state.sessionId;
+    const before = state.costUsd;
     // On --resume Claude Code reports the conversation's running total.
     state.costUsd = Math.max(state.costUsd, Number(r.result.total_cost_usd ?? 0));
     state.lastSubtype = r.result.subtype;
     if (o.mode === 'plugin') recordHeadlessCost(o.workdir, state.sessionId, state.costUsd, now);
     log(`  round ${state.rounds}: ${r.result.subtype ?? 'result'}, $${state.costUsd.toFixed(2)} so far`);
+    if (r.result.is_error && state.costUsd - before < 0.01 && !/budget/i.test(String(r.result.subtype ?? ''))) {
+      // The model did no work: a usage limit, an expired sign-in, the API down. More rounds would fail the same way.
+      state.outcome = 'error';
+      state.error = String(r.result.result ?? r.result.subtype ?? '').slice(0, 300);
+      log(`  stopped, Claude Code reported: ${state.error}`);
+      break;
+    }
     if (/budget/i.test(String(r.result.subtype ?? ''))) {
       state.outcome = 'budget';
       break;

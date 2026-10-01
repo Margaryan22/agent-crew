@@ -191,6 +191,35 @@ describe('conversation loop', () => {
     assert.equal(spent.outcome, 'budget');
   });
 
+  it('stops when Claude Code reports an error without doing any work', async () => {
+    // A usage limit or an expired sign-in: every further round would fail the same way.
+    let calls = 0;
+    const limit = await runConversation({
+      mode: 'plugin',
+      idea,
+      workdir: crewProject(),
+      capUsd: 20,
+      maxRounds: 6,
+      callClaude: async () => {
+        calls += 1;
+        return calls === 1
+          ? { result: { session_id: 's', subtype: 'success', total_cost_usd: 2 }, durationMs: 1, timedOut: false }
+          : { result: { session_id: 's', subtype: 'success', is_error: true, total_cost_usd: 2, result: 'Usage limit reached' }, durationMs: 1, timedOut: false };
+      },
+    });
+    assert.deepEqual([limit.outcome, limit.rounds, limit.error, limit.costUsd], ['error', 2, 'Usage limit reached', 2]);
+    // An error after real work (a failed turn that still spent money) is not that case: the crew is nudged on.
+    const worked = await runConversation({
+      mode: 'plugin',
+      idea,
+      workdir: crewProject(),
+      capUsd: 20,
+      maxRounds: 2,
+      callClaude: async () => ({ result: { session_id: 's', subtype: 'error_during_execution', is_error: true, total_cost_usd: (calls += 1) }, durationMs: 1, timedOut: false }),
+    });
+    assert.equal(worked.outcome, 'rounds');
+  });
+
   it('runs the baseline once unless it ends with a question', async () => {
     const dir = temp();
     const texts = ['Should I use Postgres?', 'Done: the app is built.'];
