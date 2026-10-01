@@ -2,7 +2,7 @@
   "name": "agent-crew",
   "displayName": "Agent Crew",
   "description": "A crew of AI agents that builds small-business web apps inside Claude Code, on your own Claude subscription — interview, brief, architecture, tests, reviewed code — with a live view of tasks, questions and spend.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "whysargis",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -89,7 +89,7 @@
       {
         "view": "crew.project",
         "when": "workbenchState != empty && crew.claudeCodeInstalled && !crew.hasProject",
-        "contents": "Describe the tool you need; the crew interviews you, writes a brief, designs, tests and builds it, and asks you only when it must.\n[New Project](command:crew.newProject)\nAlready have a crew-built project here?\n[Add Feature](command:crew.feature)\nFirst time? [Install the plugin](command:crew.installPlugin) · [Check setup](command:crew.checkSetup)"
+        "contents": "Describe the tool you need; the crew interviews you, writes a brief, designs, tests and builds it, and asks you only when it must.\n[New Project](command:crew.newProject)\nAlready have a crew-built project here?\n[Add Feature](command:crew.feature) · [Fix](command:crew.fix)\nFirst time? [Install the plugin](command:crew.installPlugin) · [Check setup](command:crew.checkSetup)"
       },
       {
         "view": "crew.tasks",
@@ -108,6 +108,18 @@
         "title": "Add Feature",
         "category": "Agent Crew",
         "icon": "$(git-branch)"
+      },
+      {
+        "command": "crew.fix",
+        "title": "Fix a Bug or Make a Small Change",
+        "category": "Agent Crew",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "crew.deploy",
+        "title": "Prepare Deployment",
+        "category": "Agent Crew",
+        "icon": "$(rocket)"
       },
       {
         "command": "crew.continue",
@@ -209,6 +221,16 @@
           "command": "crew.feature",
           "when": "view == crew.project && crew.hasProject",
           "group": "navigation@2"
+        },
+        {
+          "command": "crew.fix",
+          "when": "view == crew.project && crew.hasProject",
+          "group": "1_crew@1"
+        },
+        {
+          "command": "crew.deploy",
+          "when": "view == crew.project && crew.hasProject",
+          "group": "1_crew@2"
         },
         {
           "command": "crew.continue",

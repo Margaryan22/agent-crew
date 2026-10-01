@@ -227,6 +227,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<CrewTe
     await launch(`/agent-crew:feature ${description.trim()}`);
   }
 
+  async function fix(): Promise<void> {
+    if (!(await requireFolder())) return;
+    const problem = await vscode.window.showInputBox({
+      title: 'Agent Crew: Fix',
+      prompt: 'What is wrong, or which small change do you want? The crew writes a test that shows it, fixes it and reviews the fix — on a separate git branch.',
+      placeHolder: 'The report total ignores cancelled orders',
+      ignoreFocusOut: true,
+    });
+    if (!problem?.trim()) return;
+    if (!(await ensureReady())) return;
+    await launch(`/agent-crew:fix ${problem.trim()}`);
+  }
+
+  async function deploy(): Promise<void> {
+    if (!(await requireFolder())) return;
+    const host = await vscode.window.showInputBox({
+      title: 'Agent Crew: Prepare Deployment',
+      prompt: 'Where do you want to host the app? Leave empty and the crew proposes options. It prepares the files and a step-by-step guide; publishing stays with you.',
+      placeHolder: 'A VPS I already have, or leave empty',
+      ignoreFocusOut: true,
+    });
+    if (host === undefined) return;
+    if (!(await ensureReady())) return;
+    await launch(`/agent-crew:deploy${host.trim() ? ` ${host.trim()}` : ''}`);
+  }
+
   async function continueRun(): Promise<void> {
     if (!(await ensureReady())) return;
     const session = snapshot().latestSession;
@@ -276,6 +302,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<CrewTe
 
   register('crew.newProject', newProject);
   register('crew.feature', feature);
+  register('crew.fix', fix);
+  register('crew.deploy', deploy);
   register('crew.continue', continueRun);
   register('crew.answerEscalation', answerEscalation);
   register('crew.status', () => vscode.commands.executeCommand('crew.project.focus'));

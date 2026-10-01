@@ -44,6 +44,7 @@ Settings (`/plugin` → agent-crew, or `claude plugin install … --config KEY=V
 | Setting | Default | |
 | --- | --- | --- |
 | `stack_profile` | `auto` | `auto`: the crew picks the stack that fits the idea, or detects the one your project already uses, and writes rules for exactly those technologies. `tanstack`: a ready-made starter with rules that ship with the plugin. |
+| `approvals` | `ask-first-time` | On its first run the crew asks once whether it may work without a permission prompt for each action, and remembers the answer (for every project or just this one). `auto`: never ask. `manual`: Claude Code asks as usual. Whatever you choose, the safeguards below stay on, and tools of other plugins and MCP servers keep their own prompts. |
 | `run_size` | `auto` | `auto`: the crew sizes the run from the brief. `prototype`: a small idea done fast — two to four larger tasks, no designer, QA review only, no separate security reviews. `standard`: the full process whatever the size. |
 | `model_tier` | `balanced` | `economy`: every agent on the lighter models, to stay inside a Pro plan's limits. `balanced`: architect, critic and security reviewer on the strongest model. `quality`: developers and QA on it too. |
 | `review_depth` | `every-task` | `qa-only`: QA after each task, one security review of the whole project at the end. `final-only`: one QA and security review at the end — fastest, for prototypes. |
@@ -61,6 +62,7 @@ Settings (`/plugin` → agent-crew, or `claude plugin install … --config KEY=V
 - **It learns.** At the end of a run the orchestrator records what cost time (`crew lesson add`). Lessons are kept in the project and in the plugin's own data, and the agents they concern get them at the start of the next project.
 - **Sized to the idea.** After the brief the orchestrator decides whether this is a prototype or a standard project and records it (`crew size`); a prototype skips the ceremony a small app does not need.
 - **Light on context.** Agents do not re-read the same files: the plugin gives each one a digest of the stack rules cut for its role — commands, its folders, conventions — and the gist of the brief.
+- **Visible progress.** In Claude Code's agent panel each crew agent's row shows its role, the task it is on, its state, tokens and time; `/agent-crew:status` and the VS Code panel show the whole run.
 - **State on disk.** Everything is in `.crew/`, so a run survives a closed window or a usage limit: `/agent-crew:continue`.
 
 ## How the crew learns the stack

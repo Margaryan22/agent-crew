@@ -18,6 +18,12 @@ export const PARALLEL_TASKS = ['same-folder', 'worktrees'] as const;
 /** How much process a run gets: `auto` lets the orchestrator size it from the brief. */
 export type RunSize = 'auto' | 'prototype' | 'standard';
 export const RUN_SIZES = ['auto', 'prototype', 'standard'] as const;
+/**
+ * Whether Claude Code still asks the user about each action in a crew session. `ask-first-time`:
+ * the crew asks once and remembers; `auto`: never ask; `manual`: Claude Code's own prompts.
+ */
+export type Approvals = 'ask-first-time' | 'auto' | 'manual';
+export const APPROVALS = ['ask-first-time', 'auto', 'manual'] as const;
 /** What a project is actually run as, once sized (recorded in crew.json). */
 export const PROJECT_SIZES = ['prototype', 'standard'] as const;
 export type ProjectSize = (typeof PROJECT_SIZES)[number];
@@ -31,6 +37,7 @@ export interface CrewConfig {
   reviewDepth: ReviewDepth;
   parallelTasks: ParallelTasks;
   runSize: RunSize;
+  approvals: Approvals;
   host: CrewHost;
 }
 
@@ -47,6 +54,7 @@ export const CONFIG_DEFAULTS: CrewConfig = {
   reviewDepth: 'every-task',
   parallelTasks: 'same-folder',
   runSize: 'auto',
+  approvals: 'ask-first-time',
   host: 'interactive',
 };
 
@@ -106,6 +114,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
   const reviewDepth = pick<ReviewDepth>('REVIEW_DEPTH', oneOf(REVIEW_DEPTHS), CONFIG_DEFAULTS.reviewDepth);
   const parallelTasks = pick<ParallelTasks>('PARALLEL_TASKS', oneOf(PARALLEL_TASKS), CONFIG_DEFAULTS.parallelTasks);
   const runSize = pick<RunSize>('RUN_SIZE', oneOf(RUN_SIZES), CONFIG_DEFAULTS.runSize);
+  const approvals = pick<Approvals>('APPROVALS', oneOf(APPROVALS), CONFIG_DEFAULTS.approvals);
 
   let host: Resolved<CrewHost> = { value: CONFIG_DEFAULTS.host, source: 'default' };
   const hostRaw = env.CREW_HOST?.trim();
@@ -123,6 +132,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       reviewDepth: reviewDepth.value,
       parallelTasks: parallelTasks.value,
       runSize: runSize.value,
+      approvals: approvals.value,
       host: host.value,
     },
     sources: {
@@ -134,6 +144,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       reviewDepth: reviewDepth.source,
       parallelTasks: parallelTasks.source,
       runSize: runSize.source,
+      approvals: approvals.source,
       host: host.source,
     },
     issues,

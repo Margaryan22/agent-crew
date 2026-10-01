@@ -35,6 +35,7 @@ Escalations and decisions
   crew decision list
   crew lesson add --text "<one sentence>" [--for ROLE]   what to do differently next time (kept for later projects)
   crew lesson list [--for ROLE]
+  crew approvals show | crew approvals reset       whether the crew works without permission prompts; reset asks again
 
 Project
   crew init [--stack tanstack] [--language ru]     crew config
@@ -74,6 +75,8 @@ const ROUTES = {
   'decision list': esc.decisionList,
   'lesson add': lessons.lessonAdd,
   'lesson list': lessons.lessonList,
+  'approvals show': lessons.approvalsShow,
+  'approvals reset': lessons.approvalsReset,
   init: report.init,
   'size show': report.sizeShow,
   'size set': report.sizeSet,

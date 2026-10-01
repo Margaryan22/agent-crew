@@ -5,6 +5,7 @@
 import path from 'node:path';
 import * as C from '../lib/crew-contract.mjs';
 import { addLesson, cleanLesson, LESSONS_FILE, lessonsFor } from '../lib/lessons.mjs';
+import { consentFor, resetConsent } from '../lib/consent.mjs';
 import { UsageError } from './args.mjs';
 
 const ROLES = ['all', ...C.KNOWN_AGENTS];
@@ -25,6 +26,24 @@ export async function lessonAdd(project, args, io) {
   const added = addLesson(f.project, lesson);
   if (f.shared) addLesson(f.shared, lesson);
   io.log(added ? `Lesson kept for ${role === 'all' ? 'every agent' : role}${f.shared ? ', also for later projects' : ''}.` : 'That lesson is already recorded.');
+}
+
+/** `crew approvals show|reset`: the user's standing approval. It is granted only by answering the crew's question (or the plugin setting), never from here. */
+export function approvalsShow(project, args, io) {
+  args.done();
+  const setting = project.config().approvals;
+  const dataDir = project.latestMarker()?.data_dir;
+  const answered = typeof dataDir === 'string' && dataDir ? consentFor(dataDir, project.root) : undefined;
+  const mode = setting === 'auto' || setting === 'manual' ? setting : (answered ?? 'not asked yet');
+  io.log(`Permission prompts: ${mode === 'auto' ? 'off — the crew works without asking, within its safeguards' : mode === 'manual' ? 'on — Claude Code asks before each action' : 'not decided — the crew asks once at the start of its next run'}${setting !== 'ask-first-time' ? ' (plugin setting)' : ''}.`);
+}
+
+export function approvalsReset(project, args, io) {
+  args.done();
+  const dataDir = project.latestMarker()?.data_dir;
+  if (typeof dataDir !== 'string' || !dataDir) throw new UsageError('no crew session has run here yet, so there is nothing to reset');
+  resetConsent(dataDir);
+  io.log('Standing approval removed for every project. The crew asks again at the start of its next run.');
 }
 
 export function lessonList(project, args, io) {

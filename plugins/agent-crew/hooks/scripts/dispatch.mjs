@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { CONSENT_HEADER, consentChoice, consentFor, recordConsent } from '../../lib/consent.mjs';
 import { briefDigest, stackDigest } from '../../lib/digest.mjs';
 import { lessonsFor, LESSONS_FILE } from '../../lib/lessons.mjs';
 import { linkedWorktree, mainCheckout } from '../../lib/worktree.mjs';
@@ -74,7 +75,22 @@ function lessonLines(role, root, dataDir, max) {
   return [`Lessons from earlier crew runs (advice from past mistakes; the brief, the stack rules and the policy come first):`, ...lessons.map((l) => `  · ${role === 'orchestrator' && l.role !== 'all' ? `${l.role}: ` : ''}${l.text}`)];
 }
 
-/** @param {{ stack: string, payPerUse?: string, dataDir?: string, size?: string }} session */
+/**
+ * Does Claude Code still ask about each action? The setting decides when the user set it; else
+ * the answer they gave once; `pending` until they have been asked.
+ */
+function approvalMode(config, dataDir, root) {
+  if (config.approvals === 'auto' || config.approvals === 'manual') return config.approvals;
+  return consentFor(dataDir, root) ?? 'pending';
+}
+
+const CONSENT_SAID = {
+  always: 'The crew now works without asking for permission, in every project. Its safeguards stay on.',
+  project: 'The crew now works without asking for permission in this project. Its safeguards stay on.',
+  manual: 'Claude Code will keep asking before each action.',
+};
+
+/** @param {{ stack: string, payPerUse?: string, dataDir?: string, size?: string, approvals?: string }} session */
 function contextBlock(contract, config, root, session) {
   const lines = [
     'Agent Crew session. You are the orchestrator: follow the agent-crew:orchestration skill (and agent-crew:stuck-detection when something is stuck); delegate the work to the agent-crew:* agents.',
@@ -85,6 +101,11 @@ function contextBlock(contract, config, root, session) {
   if (config.budgetCapUsd === 0 && session.payPerUse) {
     lines.push(
       `Billing: this session is paid per use (${session.payPerUse}) and no spending cap is set. Before the first phase tell the human so in one line — the cap is the plugin's "Spending cap" setting (/plugin → agent-crew → Configure) — then continue without waiting.`,
+    );
+  }
+  if (session.approvals === 'pending' && config.host === 'interactive') {
+    lines.push(
+      `Standing approval: the human has not been asked yet. Before anything else, ask ONE question with AskUserQuestion — header exactly "${CONSENT_HEADER}"; question (in the project language): "Let the crew work without asking permission for each action?"; exactly these three options in this order: (1) "Yes, always (Recommended)" — in every project the agents read and write files, run commands and use the web on their own; the crew's safeguards stay on: nothing outside the project folder, no secrets in files, no destructive commands, no unknown packages; (2) "Only in this project" — the same, for this folder only; (3) "No, ask me each time" — Claude Code keeps asking before each action. The plugin records the answer itself; do not record it and do not ask again. If AskUserQuestion is not available, skip this.`,
     );
   }
   lines.push(...lessonLines('orchestrator', root, session.dataDir, 12));
@@ -172,7 +193,8 @@ async function updateTaskEstimate(contract, root, taskId) {
 async function sessionFacts(config, root, env, model) {
   const { loadPolicy, stackOf, payPerUseReason } = await import('./lib/policy.mjs');
   const stack = stackOf(root, config);
-  return { stack, size: readManifest(root)?.size, dataDir: env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA, payPerUse: config.host === 'interactive' ? payPerUseReason(env, model, loadPolicy(pluginRoot, stack)) : undefined };
+  const dataDir = env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA;
+  return { stack, size: readManifest(root)?.size, dataDir, approvals: approvalMode(config, dataDir, root), payPerUse: config.host === 'interactive' ? payPerUseReason(env, model, loadPolicy(pluginRoot, stack)) : undefined };
 }
 
 /** Tells the architect at once which entries of a just-written .crew/policy.json the hooks will ignore. */
@@ -245,7 +267,8 @@ export async function handle(event, input, env = process.env) {
     const dataDir = env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA;
     const checkPackage = createRegistryChecker({ packages: policy.packages, ...(dataDir ? { cacheFile: path.join(dataDir, 'registry-cache.json') } : {}) });
     const readFile = (abs) => (existsSync(abs) ? readFileSync(abs, 'utf8') : undefined);
-    const verdict = await evaluatePreToolUse(input, { root: fileRoot, stateRoot: root, policy, checkPackage, currentBranch, parseFrontmatter: contract.parseFrontmatter, readFile });
+    const autoApprove = approvalMode(config, dataDir, root) === 'auto';
+    const verdict = await evaluatePreToolUse(input, { root: fileRoot, stateRoot: root, autoApprove, policy, checkPackage, currentBranch, parseFrontmatter: contract.parseFrontmatter, readFile });
     const logEntry = {
       ts: now,
       session_id: String(input.session_id ?? 'unknown'),
@@ -261,6 +284,16 @@ export async function handle(event, input, env = process.env) {
     if (verdict.decision === 'none') return undefined;
     const reason = verdict.decision === 'deny' ? `Blocked by the agent-crew policy: ${verdict.reasons.join('; ')}` : `agent-crew policy: ${verdict.reasons.join('; ')}`;
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: verdict.decision, permissionDecisionReason: reason } };
+  }
+
+  if (event === 'PostToolUse' && input.tool_name === 'AskUserQuestion') {
+    // The one question about standing approval: the plugin, not the model, records what the
+    // human chose, so an agent cannot grant itself the approval.
+    const dataDir = env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA;
+    const choice = dataDir ? consentChoice(input.tool_input, input.tool_response) : undefined;
+    if (!choice) return undefined;
+    recordConsent(dataDir, root, choice);
+    return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: `Recorded by the plugin: ${CONSENT_SAID[choice]} Continue.` } };
   }
 
   if (event === 'PostToolUse') {

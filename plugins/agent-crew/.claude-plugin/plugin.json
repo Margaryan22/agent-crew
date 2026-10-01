@@ -1,7 +1,7 @@
 {
   "name": "agent-crew",
   "displayName": "Agent Crew",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A crew of AI agents (PM, critic, architect, QA, frontend, backend, DB, security) that turns an idea for a small-business tool into a working, tested project, on the stack that fits it. All state lives in .crew/ in the project.",
   "author": {
     "name": "Margaryan22",
@@ -101,6 +101,17 @@
         "standard"
       ],
       "default": "auto"
+    },
+    "approvals": {
+      "type": "string",
+      "title": "Permission prompts",
+      "description": "ask-first-time: on its first run the crew asks you once whether it may work without a prompt for each action, and remembers. auto: never ask — agents read and write files, run commands and use the web on their own, within the crew's safeguards (nothing outside the project, no secrets in files, no destructive commands, no unknown packages). manual: Claude Code asks before each action, as usual.",
+      "options": [
+        "ask-first-time",
+        "auto",
+        "manual"
+      ],
+      "default": "ask-first-time"
     }
   }
 }

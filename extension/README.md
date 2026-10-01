@@ -39,6 +39,8 @@ When you answer a question here, Agent Crew writes it to `.crew/escalations/` an
 | --- | --- |
 | Agent Crew: New Project | Start `/agent-crew:new-project` with your idea in Claude Code |
 | Agent Crew: Add Feature | Start `/agent-crew:feature` for a crew-built project (works on a new git branch) |
+| Agent Crew: Fix a Bug or Make a Small Change | Start `/agent-crew:fix`: a test that shows the problem, the fix, one review |
+| Agent Crew: Prepare Deployment | Start `/agent-crew:deploy`: hosting decision, deployment files and a step-by-step guide; publishing stays with you |
 | Agent Crew: Continue in Claude Code | Reopen the Claude Code session of the current run |
 | Agent Crew: Answer the Crew's Question | Answer an open question from the crew |
 | Agent Crew: Show Status | Open the Agent Crew view |

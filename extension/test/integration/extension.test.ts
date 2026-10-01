@@ -36,6 +36,8 @@ describe('Agent Crew — companion extension', () => {
     for (const id of [
       'crew.newProject',
       'crew.feature',
+      'crew.fix',
+      'crew.deploy',
       'crew.continue',
       'crew.status',
       'crew.answerEscalation',

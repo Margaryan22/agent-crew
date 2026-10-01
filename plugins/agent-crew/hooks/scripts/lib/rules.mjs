@@ -456,10 +456,22 @@ export async function evaluatePreToolUse(input, ctx) {
   const toolInput = input.tool_input ?? {};
   const cwd = path.resolve(input.cwd ?? ctx.root);
 
-  if (WRITE_TOOLS.has(tool)) return evaluateWrite(tool, toolInput, role, cwd, ctx, input);
-  if (tool === 'Bash') return evaluateBash(String(toolInput.command ?? ''), role, cwd, ctx, input);
-  return { decision: 'none', reasons: [], role };
+  const verdict = WRITE_TOOLS.has(tool)
+    ? evaluateWrite(tool, toolInput, role, cwd, ctx, input)
+    : tool === 'Bash'
+      ? await evaluateBash(String(toolInput.command ?? ''), role, cwd, ctx, input)
+      : { decision: 'none', reasons: [], role };
+  // The user's standing approval: whatever the policy has no objection to goes ahead without a
+  // prompt. Denials above are untouched; so are other plugins' and MCP tools, and shell commands
+  // the policy could not read.
+  if (ctx.autoApprove && verdict.decision === 'none' && AUTO_APPROVED_TOOLS.has(tool) && !verdict.opaque) {
+    return { decision: 'allow', reasons: ['the user gave the crew standing approval'], role };
+  }
+  return verdict;
 }
+
+/** Claude Code's own tools. Tools of MCP servers can act outside the project, so they keep their prompts. */
+const AUTO_APPROVED_TOOLS = new Set(['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Skill', 'Agent', 'Task', 'TodoWrite']);
 
 function evaluateWrite(tool, toolInput, role, cwd, ctx, input) {
   const file = toolInput.file_path ?? toolInput.notebook_path;
@@ -542,6 +554,9 @@ async function evaluateBash(command, role, startCwd, ctx, input) {
   const commands = parseShell(command);
   const reasons = [];
   let allSafe = commands.length > 0;
+  // Parts the policy could not read (a script built at run time, an unknown write target): even
+  // with the user's standing approval these are left to the host to ask about.
+  let opaque = commands.length === 0;
   let cwd = startCwd;
 
   for (const cmd of commands) {
@@ -551,6 +566,7 @@ async function evaluateBash(command, role, startCwd, ctx, input) {
       const abs = resolveWord(r.target, cwd, ctx.home);
       if (abs === undefined) {
         allSafe = false;
+        opaque = true;
       } else if (!isInside(abs, ctx.root) && !allowedOutsideRoot(abs, input)) {
         reasons.push(`redirecting output to ${r.target.text} writes outside the project`);
       } else if (isEnvSecretFile(abs)) {
@@ -567,6 +583,7 @@ async function evaluateBash(command, role, startCwd, ctx, input) {
     const argvText = cmd.argv.map((w) => w.text);
     if (argv0.dynamic) {
       allSafe = false;
+      opaque = true;
       continue;
     }
     if (name === 'cd' || name === 'pushd') {
@@ -579,6 +596,7 @@ async function evaluateBash(command, role, startCwd, ctx, input) {
       continue;
     }
 
+    if (cmd.tainted) opaque = true;
     let safeHere = !cmd.tainted && matchesSafe(argvText, ctx.policy);
     // `node file.js` runs project code; `node -e/-p/-r` runs arbitrary code and gets no automatic approval.
     if (name === 'node' && argvText.slice(1).some((t) => /^(-e|--eval|-p|--print|-r|--require|--import)(=|$)/.test(t))) safeHere = false;
@@ -603,11 +621,14 @@ async function evaluateBash(command, role, startCwd, ctx, input) {
     if (WRITE_COMMANDS.has(name)) {
       const writes = checkWriteTargets(cmd, name, cwd, ctx, input);
       reasons.push(...writes.reasons);
-      if (writes.unresolved) safeHere = false;
+      if (writes.unresolved) {
+        safeHere = false;
+        opaque = true;
+      }
     }
     if (!safeHere) allSafe = false;
   }
 
   if (reasons.length) return { decision: 'deny', reasons: [...new Set(reasons)], role };
-  return allSafe ? { decision: 'allow', reasons: ['every command is on the safe list'], role } : { decision: 'none', reasons: [], role };
+  return allSafe ? { decision: 'allow', reasons: ['every command is on the safe list'], role } : { decision: 'none', reasons: [], role, opaque };
 }

