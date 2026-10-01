@@ -9,7 +9,7 @@
   - ключ в SecretStorage, модуль лицензий (был выключен), локальная телеметрия;
   - копия плагина в `resources/plugin`, вшитый бинарь Claude Code и 8 платформенных сборок.
 
-  VSIX теперь универсальный и весит ~122 КБ. Удалённый код остаётся в истории git (коммиты до `5187ac7`).
+  VSIX теперь универсальный и весит ~122 КБ. Удалённый код остаётся в истории git (коммиты до `f7473fa`).
 - **Как вызывается Claude Code.** Проверено по коду расширения 2.1.285:
   - команда `claude-vscode.primaryEditor.open(sessionId?, prompt?)` открывает сессию и подставляет запрос в поле ввода, не отправляя его. Если сессия уже открыта, запрос не применяется: Claude Code показывает «Session is already open. Your prompt was not applied». Поэтому для существующей сессии текст кладётся ещё и в буфер обмена;
   - URI `vscode://anthropic.claude-code/install-plugin?plugin=agent-crew&marketplace=Margaryan22/agent-crew` открывает диалог плагинов в чате. Marketplace должен быть GitHub `owner/repo`, https-URL или git SSH; `%`-кодирование в самом источнике запрещено, `#` в ссылке тоже. Схема берётся из `vscode.env.uriScheme` (у Cursor своя);
