@@ -4,7 +4,7 @@ A crew of AI agents that builds small-business web apps — booking, inventory, 
 
 This extension is the control panel: it sets up the **agent-crew** plugin in Claude Code, starts crew runs, and shows the run live — phase, task board, questions waiting for you, spend.
 
-> **Pre-release.** Versions `0.ODD.x` are pre-releases; `0.EVEN.x` are stable.
+> **Versions.** Versions `0.ODD.x` are pre-releases; `0.EVEN.x` are stable.
 
 ## How it works
 

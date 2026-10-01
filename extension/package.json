@@ -2,7 +2,7 @@
   "name": "agent-crew",
   "displayName": "Agent Crew",
   "description": "A crew of AI agents that builds small-business web apps inside Claude Code, on your own Claude subscription — interview, brief, architecture, tests, reviewed code — with a live view of tasks, questions and spend.",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "publisher": "whysargis",
   "license": "MIT",
   "icon": "resources/icon.png",

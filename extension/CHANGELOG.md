@@ -2,6 +2,10 @@
 
 Versions with an odd minor (`0.1.x`, `0.3.x`) are pre-releases; even minors (`0.2.x`, `0.4.x`) are releases.
 
+## 0.4.0
+
+First release in the Marketplace. Same features as 0.3.2: the control panel for the agent-crew plugin in Claude Code — setup, New Project, Add Feature, Fix, Prepare Deployment, Continue, the Project and Tasks views, answering the crew's questions.
+
 ## 0.3.2 — pre-release
 
 - New commands: **Fix a Bug or Make a Small Change** (`/agent-crew:fix`) and **Prepare Deployment** (`/agent-crew:deploy`).
