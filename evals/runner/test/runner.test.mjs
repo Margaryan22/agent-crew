@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import * as C from '../../../plugins/agent-crew/lib/crew-contract.mjs';
 import { ALLOWED_TOOLS, authProblem, claudeArgs, claudeEnv, parseResult } from '../lib/claude.mjs';
 import { appendRow, COLUMNS, csvLine } from '../lib/csv.mjs';
-import { countTests, summarize } from '../lib/hidden.mjs';
+import { countTests, HIDDEN_CONFIG, HIDDEN_DIR, installHiddenTests, removeHiddenTests, summarize } from '../lib/hidden.mjs';
 import { baselinePrompt, interviewFile, loadIdeas, parseIdea, pluginPrompt } from '../lib/ideas.mjs';
 import { nextBaselineStep, nextPluginStep, runConversation } from '../lib/loop.mjs';
 import { envFile } from '../lib/workspace.mjs';
@@ -330,6 +330,16 @@ describe('hidden tests, csv, workspace', () => {
     };
     assert.deepEqual(summarize(report), { passed: 6, total: 8, failed: ['double', 'inner › x'] });
     assert.deepEqual(summarize(undefined), { passed: 0, total: 0, failed: [] });
+  });
+
+  it('takes the hidden tests out of the project after running them', () => {
+    // A kept project can be continued; the crew must not find the tests it is graded by.
+    const dir = temp();
+    installHiddenTests(path.join(evals, 'hidden-tests', 'bakery'), dir);
+    writeFileSync(path.join(dir, 'hidden-results.json'), '{}');
+    assert.ok(readdirSync(dir).includes(HIDDEN_DIR) && readdirSync(dir).includes(HIDDEN_CONFIG));
+    removeHiddenTests(dir);
+    assert.deepEqual(readdirSync(dir), []);
   });
 
   it('counts the hidden tests of every idea', () => {

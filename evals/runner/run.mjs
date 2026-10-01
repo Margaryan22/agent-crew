@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authProblem, authStatus, claudeArgs, claudeEnv, runClaude, stopRunning } from './lib/claude.mjs';
 import { appendRow } from './lib/csv.mjs';
-import { countTests, installHiddenTests, runHiddenTests } from './lib/hidden.mjs';
+import { countTests, installHiddenTests, removeHiddenTests, runHiddenTests } from './lib/hidden.mjs';
 import { interviewFile, loadIdeas } from './lib/ideas.mjs';
 import { runConversation } from './lib/loop.mjs';
 import { prepareWorkspace, refreshDatabase, setupWorkspace, sh, teardownWorkspace } from './lib/workspace.mjs';
@@ -137,6 +137,7 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
     let hidden;
     try {
       if (resume) {
+        removeHiddenTests(workdir); // an older runner left them in a kept project
         log('  database up');
         sh(workdir, env, 'docker', ['compose', 'up', '-d', '--wait'], 5 * 60 * 1000);
       } else {
@@ -171,16 +172,23 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
           return r;
         },
       });
-      if (!o.skipHidden) {
+      // A run that broke off (usage limit, crew waiting for a human) has no app to grade yet.
+      const brokeOff = conversation.outcome === 'error' || conversation.outcome === 'waiting';
+      if (brokeOff) log(`  hidden tests skipped: the run did not finish${o.keep ? ` — continue it with --continue ${runId}` : ''}`);
+      if (!o.skipHidden && !brokeOff) {
         const source = path.join(evalsDir, 'hidden-tests', idea.id);
         log('  hidden tests');
         refreshDatabase({ workdir, env, log });
         installHiddenTests(source, workdir);
-        hidden = runHiddenTests({ workdir, env, log }) ?? {
-          passed: 0,
-          total: countTests(source, readdirSync(source).filter((f) => f.endsWith('.spec.ts'))),
-          failed: ['(the hidden tests could not run)'],
-        };
+        try {
+          hidden = runHiddenTests({ workdir, env, log }) ?? {
+            passed: 0,
+            total: countTests(source, readdirSync(source).filter((f) => f.endsWith('.spec.ts'))),
+            failed: ['(the hidden tests could not run)'],
+          };
+        } finally {
+          removeHiddenTests(workdir);
+        }
         writeFileSync(path.join(artifacts, 'hidden-tests.json'), JSON.stringify(hidden, null, 2));
       }
     } catch (err) {

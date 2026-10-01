@@ -1,5 +1,5 @@
 // The hidden acceptance tests (evals/hidden-tests/<idea>/): copied into the project only after the
-// crew finished, run with their own Playwright config against the project's dev server.
+// crew finished, run with their own Playwright config against a production build, and removed again.
 
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -31,6 +31,11 @@ export function installHiddenTests(sourceDir, workdir) {
   rmSync(target, { recursive: true, force: true });
   cpSync(sourceDir, target, { recursive: true });
   writeFileSync(path.join(workdir, HIDDEN_CONFIG), hiddenConfig);
+}
+
+/** Takes the hidden tests out of the project again: a kept project may be continued, and the crew must never see them. */
+export function removeHiddenTests(workdir) {
+  for (const name of [HIDDEN_DIR, HIDDEN_CONFIG, REPORT]) rmSync(path.join(workdir, name), { recursive: true, force: true });
 }
 
 /** Counts from a Playwright JSON report. Tests that did not run count as failed. */
