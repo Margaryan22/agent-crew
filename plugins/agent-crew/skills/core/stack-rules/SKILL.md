@@ -16,7 +16,7 @@ With `stack_profile=auto` the plugin ships no rules for the project's technologi
 
 - A technology the owner asked for in the interview is fixed; build around it.
 - Prefer mainstream, maintained tools with an official project generator and one language across the app where that is natural.
-- Business data goes into a relational database unless the brief says otherwise; a local instance must start with one command (a container is fine).
+- **Nothing to install beyond the language runtime.** The owner runs the crew from a chat window and may have no Docker, no database server and no admin rights. Business data goes into a relational database that is **embedded and file-based** (the database is a file in the project, opened by a library), so setup, tests and the app run with the package manager alone. Choose a database server — and the container or installer it needs — only when the brief requires one or the owner asked for it; then say so in the ADR and put "install and start <what>" on the access checklist. The same goes for any other service: no message brokers, caches or local cloud emulators.
 - Pick the test runners with the stack: unit tests, and end-to-end tests that drive a real browser.
 - Nothing the brief does not need: no queues, caches, microservices or extra services "for later".
 
@@ -24,7 +24,7 @@ Whatever the stack, the project must offer these, because QA, the final report a
 
 | Need | Rule |
 |---|---|
-| One setup command | installs dependencies, starts the local database, applies migrations and seed data |
+| One setup command | installs dependencies, creates the local database, applies migrations and seed data — with no other software to install or start |
 | Dev server and a production build with a preview | both serve on `http://localhost:3000` unless the brief names another address |
 | Checks | unit tests, end-to-end tests, lint and type checks — each one command, non-interactive |
 | Settings | `.env.example` with placeholders for every variable; `.env` git-ignored |
@@ -33,7 +33,7 @@ Whatever the stack, the project must offer these, because QA, the final report a
 ## 2. Create the skeleton (new project)
 
 1. Generate it with the framework's official generator, using its non-interactive options, in the project root. Commit the lockfile: versions are pinned from the first commit.
-2. Add what the generator left out: test runners with one passing smoke test each, lint and type checks, `.env.example` and `.env`, the local database, sign-in if the brief needs it.
+2. Add what the generator left out: test runners with one passing smoke test each, lint and type checks, `.env.example` and `.env`, the embedded database (its file git-ignored), sign-in if the brief needs it.
 3. Write a short `README.md` (the commands) and `CLAUDE.md` (five to ten lines of conventions and a pointer to `.crew/stack/README.md`).
 4. Run the setup command and every check. They must pass before anyone builds on the skeleton.
 5. Commit: `chore: project skeleton`.

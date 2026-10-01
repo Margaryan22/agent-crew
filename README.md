@@ -28,7 +28,7 @@ claude plugin marketplace add Margaryan22/agent-crew
 claude plugin install agent-crew@agent-crew
 ```
 
-Requires Claude Code 2.1.271 or later, Node.js 22+, and Docker for the generated project's database. In VS Code, the **Agent Crew** extension (not published yet) does these steps for you from its walkthrough and shows the run's progress.
+Requires Claude Code 2.1.271 or later and Node.js 22+. Nothing else: with the default `auto` stack the crew uses an embedded, file-based database, so there is no Docker and no database server to install. Only the `tanstack` preset needs Docker (it runs PostgreSQL in a container). In VS Code, the **Agent Crew** extension (not published yet) does these steps for you from its walkthrough and shows the run's progress.
 
 | Command | What it does |
 | --- | --- |
