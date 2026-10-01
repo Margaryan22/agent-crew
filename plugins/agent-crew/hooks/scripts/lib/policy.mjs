@@ -106,6 +106,10 @@ export function loadPolicy(pluginRoot, stackProfile, root) {
   const profileFile = path.join(pluginRoot, 'skills', 'stacks', stackProfile, 'policy.json');
   let policy = mergePolicy(core, existsSync(profileFile) ? readJson(profileFile) : {});
   const projectFile = root ? path.join(root, PROJECT_POLICY) : undefined;
+  // No preset and no project policy yet: the architect is still building the skeleton, and nobody
+  // else can write project files. It may write anywhere in the project (not .crew/ or .git/)
+  // until it saves .crew/policy.json, which then says who owns what.
+  if (projectFile && !existsSync(profileFile) && !existsSync(projectFile)) policy = { ...policy, bootstrap: true };
   if (projectFile && existsSync(projectFile)) {
     try {
       policy = mergePolicy(policy, sanitizeProjectPolicy(readJson(projectFile), core));

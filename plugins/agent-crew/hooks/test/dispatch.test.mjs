@@ -211,6 +211,10 @@ describe('a stack without a preset (stack_profile=auto)', () => {
   it('gives code agents no zone until the architect writes the project policy', () => {
     const root = tempProject();
     assert.equal(write(root, 'app/page.tsx', 'x', 'frontend').permissionDecision, 'deny');
+    // Seen live: the architect wrote the policy early and then could not finish its own skeleton.
+    // While there is no policy it builds the skeleton anywhere in the project, but not in .crew/.
+    assert.equal(write(root, 'src/app/layout.tsx', 'x', 'architect').permissionDecision, 'allow');
+    assert.equal(write(root, '.crew/brief.md', 'x', 'architect').permissionDecision, 'deny');
     assert.equal(write(root, '.crew/policy.json', '{}', 'architect').permissionDecision, 'allow');
     assert.equal(write(root, '.crew/stack/README.md', '# Stack', 'architect').permissionDecision, 'allow');
     assert.equal(write(root, '.crew/policy.json', '{}', 'frontend').permissionDecision, 'deny');
@@ -218,6 +222,8 @@ describe('a stack without a preset (stack_profile=auto)', () => {
     writeFileSync(path.join(root, '.crew', 'policy.json'), JSON.stringify({ zones: { frontend: ['app/**'], backend: ['api/**', '.crew/**', '../x/**'] }, safeCommands: [['pnpm', 'test'], ['rm'], ['pnpm']], packages: { allow: ['next'] } }));
     assert.equal(write(root, 'app/page.tsx', 'x', 'frontend').permissionDecision, 'allow');
     assert.equal(write(root, 'api/users.py', 'x', 'backend').permissionDecision, 'allow');
+    // With the policy saved, the architect is held to its own zone like everyone else.
+    assert.equal(write(root, 'app/page.tsx', 'x', 'architect').permissionDecision, 'deny');
     // Entries that reach into .crew/ or out of the project are ignored, the rest applies.
     assert.match(write(root, '.crew/brief.md', 'x', 'backend').permissionDecisionReason, /outside that zone/);
     const bash = (command) => run('PreToolUse', { session_id: 's', tool_name: 'Bash', tool_input: { command }, agent_type: 'agent-crew:backend' }, { root, env: auto }).output?.hookSpecificOutput?.permissionDecision;

@@ -32,7 +32,8 @@ Whatever the stack, the project must offer these, because QA, the final report a
 
 ## 2. Create the skeleton (new project)
 
-1. Generate it with the framework's official generator, using its non-interactive options, in the project root. Commit the lockfile: versions are pinned from the first commit.
+1. Generate it with the framework's official generator, using its non-interactive options, **directly in the project root, as one plain command** — no temporary folders, shell variables or `cd … &&` chains, which an unattended run refuses. If the generator will not run in a folder that already has files, write the same files yourself. Commit the lockfile: versions are pinned from the first commit.
+   Until `.crew/policy.json` exists you may write any project file; the moment you save the policy, your own zone shrinks to what it gives you. So finish the skeleton — including the first page and anything else the smoke tests need — **before** you write the policy (step 4).
 2. Add what the generator left out: test runners with one passing smoke test each, lint and type checks, `.env.example` and `.env`, the embedded database (its file git-ignored), sign-in if the brief needs it.
 3. Write a short `README.md` (the commands) and `CLAUDE.md` (five to ten lines of conventions and a pointer to `.crew/stack/README.md`).
 4. Run the setup command and every check. They must pass before anyone builds on the skeleton.

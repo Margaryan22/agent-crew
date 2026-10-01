@@ -482,7 +482,8 @@ function evaluateWrite(tool, toolInput, role, cwd, ctx, input) {
   }
   reasons.push(...checkCrewFields(tool, toolInput, abs, rel, ctx));
   const zones = zonesFor(role, ctx.policy);
-  if (!matchesAny(rel, zones)) {
+  const settingUp = ctx.policy.bootstrap && role === 'architect' && !/^\.(crew|git)(\/|$)/.test(rel);
+  if (!matchesAny(rel, zones) && !settingUp) {
     // Name the owner: without it the first live run escalated a .env edit to the human although two agents could have made it.
     const owners = ownersOf(rel, ctx.policy, matchesAny).filter((r) => r !== role && r !== 'orchestrator');
     const who = owners.length ? `the ${owners.length > 1 ? `${owners.slice(0, -1).join(', ')} or ${owners.at(-1)}` : owners[0]} agent` : 'the architect, who decides where it belongs';
