@@ -201,7 +201,14 @@ const CURL_VALUE_FLAGS = new Set([
   '-o', '--output', '-H', '--header', '-d', '--data', '--data-raw', '--data-binary', '--data-urlencode', '-X', '--request', '-u', '--user',
   '-A', '--user-agent', '-e', '--referer', '-b', '--cookie', '-c', '--cookie-jar', '-F', '--form', '-T', '--upload-file', '-w', '--write-out',
   '-m', '--max-time', '--connect-timeout', '--retry', '-r', '--range', '-K', '--config', '--cacert', '--cert', '--key', '-E',
+  // More flags that take a value; without them the value ("--retry-delay 1") was read as a host.
+  '--retry-delay', '--retry-max-time', '--max-redirs', '--limit-rate', '--rate', '-C', '--continue-at', '-D', '--dump-header', '--trace', '--trace-ascii',
+  '--stderr', '--json', '--data-ascii', '--form-string', '--url-query', '--oauth2-bearer', '--proxy-user', '-U', '--cert-type', '--key-type', '--pass',
+  '--capath', '--ciphers', '--local-port', '-z', '--time-cond', '--noproxy', '--netrc-file', '--output-dir', '--max-filesize', '-y', '--speed-time',
+  '-Y', '--speed-limit', '--keepalive-time', '--expect100-timeout', '--proto', '--proto-redir', '--tls-max', '--happy-eyeballs-timeout-ms',
 ]);
+/** Flags that send the request somewhere other than the URL's host: the allowlist cannot vouch for them. */
+const CURL_REROUTING_FLAGS = ['--resolve', '--connect-to', '--unix-socket', '--abstract-unix-socket', '--socks4', '--socks4a', '--socks5', '--socks5-hostname', '--preproxy', '--proxy1.0', '--doh-url', '--dns-servers', '--interface'];
 const WGET_VALUE_FLAGS = new Set(['-O', '--output-document', '-o', '--output-file', '-P', '--directory-prefix', '-U', '--user-agent', '--header', '-t', '--tries', '-T', '--timeout', '-e', '--execute']);
 
 function hostOf(text) {
@@ -217,11 +224,19 @@ function checkNetwork(cmd, name, ctx) {
   const valueFlags = name === 'wget' ? WGET_VALUE_FLAGS : CURL_VALUE_FLAGS;
   const urls = [];
   const argv = cmd.argv;
+  const rerouted = [];
   for (let k = 1; k < argv.length; k++) {
     const w = argv[k];
-    if (w.text === '--url' || w.text === '-x' || w.text === '--proxy') {
-      if (argv[k + 1]) urls.push(argv[k + 1]);
-      k++;
+    const [flag, inline] = w.text.startsWith('--') && w.text.includes('=') ? [w.text.slice(0, w.text.indexOf('=')), w.text.slice(w.text.indexOf('=') + 1)] : [w.text, undefined];
+    if (name === 'curl' && CURL_REROUTING_FLAGS.includes(flag)) {
+      rerouted.push(flag);
+      if (inline === undefined) k++;
+    } else if (flag === '--url' || flag === '-x' || flag === '--proxy') {
+      if (inline !== undefined) urls.push({ ...w, text: inline });
+      else if (argv[k + 1]) urls.push(argv[k + 1]);
+      if (inline === undefined) k++;
+    } else if (inline !== undefined) {
+      // --flag=value: the value belongs to the flag
     } else if (valueFlags.has(w.text)) {
       k++;
     } else if (!w.text.startsWith('-')) {
@@ -229,7 +244,7 @@ function checkNetwork(cmd, name, ctx) {
     }
   }
   if (cmd.argsFromStdin) return [`${name} with URLs from xargs cannot be verified`];
-  const reasons = [];
+  const reasons = rerouted.map((flag) => `${name} ${flag} sends the request to a host the network allowlist cannot check`);
   for (const u of urls) {
     if (u.dynamic) {
       reasons.push(`${name} URL "${u.text}" can't be resolved before running`);

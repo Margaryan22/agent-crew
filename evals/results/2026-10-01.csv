@@ -1,0 +1,2 @@
+idea_id,mode,hidden_tests_passed,hidden_tests_total,cost_usd,duration_min,escalations,human_interventions,model,outcome,rounds,run_id,started_at
+barbershop,plugin,8,8,10.45,55.3,1,7,claude-sonnet-5-5,done,1,20261001T100746Z,2026-10-01T12:24:18.654Z

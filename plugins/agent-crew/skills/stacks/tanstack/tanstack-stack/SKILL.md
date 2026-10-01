@@ -44,7 +44,7 @@ git init -q 2>/dev/null; git add -A && git commit -m "chore: scaffold from agent
 | `src/routes/**` (pages), `src/components/**`, `src/styles.css`, `src/lib/text.ts`, `public/` | frontend | `_app/` = needs sign-in |
 | `src/server/*.ts` (server functions), `src/server/*.server.ts`, `src/routes/api/**`, `src/lib/**` | backend | `src/lib/validation/` holds Zod schemas shared with forms |
 | `src/db/**`, `drizzle/**`, `drizzle.config.ts` | db | `db.server.ts` is the client, `seed.ts` the sample data |
-| `tests/**`, `e2e/**`, `playwright.config.ts`, `vitest.config.ts` | qa | |
+| `tests/**`, `e2e/**`, `playwright.config.ts`, `vitest.config.ts` | qa | frontend, backend and db also write unit tests for their own code in `tests/unit/**` |
 | `package.json`, configs, `docker-compose.yml`, `.env.example`, `CLAUDE.md`, `README.md` | architect | |
 | `.env` (git-ignored local settings: `DATABASE_URL`, `SEED_*`, session secret) | db, backend, architect | placeholders and local defaults only; when `.env.example` gains a variable, the same task adds it to `.env` |
 

@@ -10,7 +10,8 @@
       "src/routeTree.gen.ts",
       "src/lib/text.ts",
       "src/lib/format.ts",
-      "public/**"
+      "public/**",
+      "tests/unit/**"
     ],
     "backend": [
       "src/server/**",
@@ -18,14 +19,16 @@
       "src/lib/**",
       "src/middleware/**",
       ".env",
-      ".env.local"
+      ".env.local",
+      "tests/unit/**"
     ],
     "db": [
       "src/db/**",
       "drizzle/**",
       "drizzle.config.ts",
       ".env",
-      ".env.local"
+      ".env.local",
+      "tests/unit/**"
     ],
     "qa": [
       "tests/**",

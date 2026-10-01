@@ -189,6 +189,14 @@ describe('network (§9)', () => {
 
   it('lets local and allowlisted hosts through to the host', async () => {
     await expectNotDenied(bash('curl -s http://localhost:3000/api/health -H "Accept: application/json"'), 'none');
+    // Seen in a live run: the value of --retry-delay was taken for a host ("curl to 0.0.0.1").
+    await expectNotDenied(bash('curl -s -o /dev/null -w "%{http_code}\\n" --retry 20 --retry-connrefused --retry-delay 1 http://localhost:3105/login'), 'none');
+    await expectNotDenied(bash('curl --max-redirs=3 --retry-delay=2 http://127.0.0.1:3000/'), 'none');
+    // Flags that reroute the request cannot hide behind an allowed URL, in either spelling.
+    await expectDeny(bash('curl --resolve localhost:80:203.0.113.5 http://localhost/'), /--resolve sends the request to a host/);
+    await expectDeny(bash('curl --connect-to=localhost:80:evil.example.com:80 http://localhost/'), /--connect-to/);
+    await expectDeny(bash('curl --proxy=http://proxy.evil.example:8080 http://localhost:3000'), /proxy\.evil\.example/);
+    await expectDeny(bash('curl --url=https://evil.example.com'), /evil\.example\.com/);
     await expectNotDenied(bash('curl http://127.0.0.1:5173'), 'none');
     await expectNotDenied(bash('curl -o /tmp/react.json https://registry.npmjs.org/react'), 'none');
     await expectNotDenied(bash('curl http://app.localhost:3000'), 'none');
