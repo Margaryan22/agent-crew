@@ -74,6 +74,9 @@ export async function scaffold(project, args, io) {
   const stack = args.str('stack') ?? project.manifest()?.stack_profile ?? project.config().stackProfile;
   args.done();
   const templateDir = path.join(pluginRoot, 'templates', stack);
+  if (stack === C.AUTO_STACK) {
+    throw new UsageError('stack profile "auto" has no template: the architect chooses the stack and creates the skeleton (skill agent-crew:stack-rules). Use --stack <preset> to copy a ready-made one.');
+  }
   if (!existsSync(templateDir)) throw new UsageError(`no template for stack profile "${stack}" (${templateDir})`);
   const copied = [];
   const skipped = [];

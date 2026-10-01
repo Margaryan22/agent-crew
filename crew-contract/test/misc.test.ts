@@ -134,9 +134,12 @@ describe('resolveCrewConfig', () => {
       CREW_STACK_PROFILE: 'nextjs',
       CREW_HOST: 'eval',
     });
-    expect(config).toEqual({ autonomy: 'review', briefReviewMinutes: 3, budgetCapUsd: 7, stackProfile: 'tanstack', host: 'eval' });
+    expect(config).toEqual({ autonomy: 'review', briefReviewMinutes: 3, budgetCapUsd: 7, stackProfile: 'auto', host: 'eval' });
     expect(sources).toMatchObject({ autonomy: 'env', budgetCapUsd: 'userConfig', briefReviewMinutes: 'eval', stackProfile: 'default', host: 'env' });
-    expect(issues).toEqual(['Ignoring invalid stack_profile "nextjs" from env; using tanstack.']);
+    expect(issues).toEqual(['Ignoring invalid stack_profile "nextjs" from env; using auto.']);
+    expect(resolveCrewConfig({ CLAUDE_PLUGIN_OPTION_STACK_PROFILE: 'tanstack' }).config.stackProfile).toBe('tanstack');
+    // No spending cap unless the user sets one: on a subscription the plan's limits apply.
+    expect(CONFIG_DEFAULTS.budgetCapUsd).toBe(0);
     expect(resolveCrewConfig({ CREW_BUDGET_CAP_USD: '-1' }).issues[0]).toContain('budget_cap_usd');
   });
 

@@ -1,8 +1,8 @@
 {
   "name": "agent-crew",
   "displayName": "Agent Crew",
-  "version": "0.1.0",
-  "description": "A crew of AI agents (PM, critic, architect, QA, frontend, backend, DB, security) that turns an idea for a small-business tool into a working, tested project. All state lives in .crew/ in the project.",
+  "version": "0.2.0",
+  "description": "A crew of AI agents (PM, critic, architect, QA, frontend, backend, DB, security) that turns an idea for a small-business tool into a working, tested project, on the stack that fits it. All state lives in .crew/ in the project.",
   "author": {
     "name": "Margaryan22",
     "url": "https://github.com/Margaryan22"
@@ -10,29 +10,45 @@
   "homepage": "https://github.com/Margaryan22/agent-crew",
   "repository": "https://github.com/Margaryan22/agent-crew",
   "license": "MIT",
-  "keywords": ["agents", "team", "project-generator", "tanstack", "drizzle", "playwright"],
-  "skills": ["./skills/core", "./skills/stacks/tanstack", "./skills/commands"],
+  "keywords": [
+    "agents",
+    "team",
+    "project-generator",
+    "best-practices",
+    "playwright"
+  ],
+  "skills": [
+    "./skills/core",
+    "./skills/stacks/tanstack",
+    "./skills/commands"
+  ],
   "userConfig": {
     "budget_cap_usd": {
       "type": "number",
-      "title": "Budget cap per project (USD)",
-      "description": "Stop a project once estimated spend reaches this amount. Only enforced exactly when a host reports real costs (API-key sessions, eval runs); on a subscription your plan limits apply.",
-      "default": 20,
+      "title": "Spending cap (USD) — only for pay-per-use",
+      "description": "Leave 0 on a Claude subscription: your plan's limits apply and nothing is capped. Set an amount only if you pay per use (API key, cloud provider, or a model billed in usage credits); the crew then stops a project when its spend reaches it.",
+      "default": 0,
       "min": 0,
       "max": 100000
     },
     "stack_profile": {
       "type": "string",
-      "title": "Stack profile",
-      "description": "Technology stack the crew builds with.",
-      "options": ["tanstack"],
-      "default": "tanstack"
+      "title": "Stack",
+      "description": "auto: the crew picks the stack that fits the idea (or detects the one your project already uses) and writes its own rules for exactly those technologies. tanstack: a ready-made starter (TanStack Start, Drizzle, PostgreSQL) with rules that ship with the plugin.",
+      "options": [
+        "auto",
+        "tanstack"
+      ],
+      "default": "auto"
     },
     "autonomy": {
       "type": "string",
       "title": "Autonomy",
       "description": "full: the crew only stops for escalations. review: the crew shows the brief and waits for your approval before building.",
-      "options": ["full", "review"],
+      "options": [
+        "full",
+        "review"
+      ],
       "default": "full"
     },
     "brief_review_minutes": {

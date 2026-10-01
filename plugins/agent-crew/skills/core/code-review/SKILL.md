@@ -24,7 +24,7 @@ Naming, small duplication, missing comments, style that the formatter does not e
 
 ## Conventions to check
 
-- Follows the stack skills and the project's `CLAUDE.md` (folder layout, server functions, validation, error messages).
+- Follows the stack rules (`.crew/stack/`, or the preset profile's stack skills) and the project's `CLAUDE.md` (folder layout, server functions, validation, error messages).
 - User-facing text in the project language; code and identifiers in English.
 - Errors reach the user as a clear message; nothing fails silently; no `console.log` left behind.
 - No secrets, no real personal data, no new dependencies outside the stack allowlist without a reason in the task notes.

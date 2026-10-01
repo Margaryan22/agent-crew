@@ -11,7 +11,7 @@ The crew is judged by tests it has never seen, written from the same brief. Your
 ## Before code (SPEC §7.5)
 
 1. Read `.crew/brief.md` (Acceptance criteria, User stories, Users and roles), `docs/architecture.md` and the ADRs.
-2. Load the stack skill for e2e tests (the `<stack>-stack` skill names it) for the runner, folder, selectors and fixtures.
+2. Read the stack rules for end-to-end tests — the stack rules your crew context names (`.crew/stack/README.md`, or the `<stack>-stack` skill of a preset profile) — for the runner, folder, selectors and fixtures.
 3. Write **one test per acceptance criterion** (two when it has a clear unhappy path). Put the criterion id in the test name so failures map back:
 
 ```ts

@@ -105,7 +105,7 @@ describe('init and config', () => {
     assert.equal(manifest.contract_version, 1);
     assert.equal(manifest.plugin.name, 'agent-crew');
     assert.equal(manifest.plugin.version, JSON.parse(read(pluginRoot, '.claude-plugin/plugin.json')).version);
-    assert.equal(manifest.stack_profile, 'tanstack');
+    assert.equal(manifest.stack_profile, 'auto');
     assert.equal(manifest.language, 'ru');
     assert.equal(read(root, '.crew/.gitignore'), 'logs/\nsessions/\n');
     assert.match(read(root, '.crew/status.md'), /phase: interview/);
@@ -117,7 +117,7 @@ describe('init and config', () => {
 
   it('resolves config from env, then the newest session marker, then defaults', async () => {
     const root = await started();
-    assert.equal((await json(root, ['config'])).budgetCapUsd, 20);
+    assert.deepEqual([(await json(root, ['config'])).budgetCapUsd, (await json(root, ['config'])).stackProfile], [0, 'auto']);
     mkdirSync(path.join(root, '.crew', 'sessions'), { recursive: true });
     writeFileSync(path.join(root, '.crew/sessions/a.json'), JSON.stringify({ started_at: '2026-09-29T10:00:00Z', config: { budgetCapUsd: 5, autonomy: 'review' } }));
     writeFileSync(path.join(root, '.crew/sessions/b.json'), JSON.stringify({ started_at: '2026-09-29T11:00:00Z', config: { budgetCapUsd: 7 } }));
@@ -348,6 +348,10 @@ describe('status, next, check, budget, summary', () => {
     await ok(root, ['task', 'new', '--title', 'Form', '--owner', 'frontend', '--budget', '1']);
     const est = (usd, task) => JSON.stringify({ ts: '2026-09-29T12:00:00Z', source: 'estimate', task, tokens: { input: 1000, output: 100 }, turn_cost_usd: usd });
     writeFileSync(path.join(root, '.crew/costs.log'), `${est(1.5, 'T-001')}\n${est(15, 'T-002')}\n`);
+    // Without a cap spend alone is no finding; the cap below is one the user set for a pay-per-use session.
+    assert.deepEqual((await json(root, ['check'])).map((f) => f.kind), ['task_budget']);
+    mkdirSync(path.join(root, '.crew', 'sessions'), { recursive: true });
+    writeFileSync(path.join(root, '.crew/sessions/s.json'), JSON.stringify({ started_at: '2026-09-29T10:00:00Z', config: { budgetCapUsd: 20 } }));
     let findings = await json(root, ['check']);
     assert.deepEqual(findings.map((f) => f.kind).sort(), ['budget_warning', 'task_budget']);
     assert.match(findings.find((f) => f.kind === 'task_budget').message, /T-001 used ~\$1\.5 of its \$1 share/);
@@ -386,7 +390,7 @@ describe('status, next, check, budget, summary', () => {
     assert.deepEqual(s.tasks, { total: 1, todo: 1 });
     assert.deepEqual(s.open_escalations, [{ id: 'E-001', status: 'open', kind: 'question', question: 'Colours?' }]);
     assert.deepEqual(s.access_needed, ['SMTP password — booking emails']);
-    assert.match(await ok(root, ['summary']), /Phase: interview — Project started\.\nTasks: 1 \(1 todo\)\nDecisions: 0\nEscalations waiting: E-001 \[open\] Colours\?\nAccess still needed: SMTP password — booking emails\nSpend: \$0 \(estimate\) of \$20 cap/);
+    assert.match(await ok(root, ['summary']), /Phase: interview — Project started\.\nTasks: 1 \(1 todo\)\nDecisions: 0\nEscalations waiting: E-001 \[open\] Colours\?\nAccess still needed: SMTP password — booking emails\nSpend: \$0 \(estimate\), ~0 tokens estimated/);
   });
 });
 
@@ -447,6 +451,10 @@ describe('scaffold', () => {
     mkdirSync(root);
     await ok(root, ['init']);
     writeFileSync(path.join(root, 'README.md'), '# Mine\n');
+    // The default profile has nothing to copy: the architect builds the skeleton for the stack it chose.
+    await fails(root, ['scaffold'], 1, /stack profile "auto" has no template: the architect chooses the stack/);
+    rmSync(path.join(root, '.crew'), { recursive: true });
+    await ok(root, ['init', '--stack', 'tanstack']);
     const out = await ok(root, ['scaffold']);
     assert.match(out, /Copied \d+ files from the tanstack template and created \.env from \.env\.example\./);
     assert.match(out, /Kept 1 existing file: README\.md/);

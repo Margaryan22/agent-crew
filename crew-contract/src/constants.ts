@@ -25,6 +25,11 @@ export const CREW_PATHS = {
   decisions: '.crew/decisions',
   /** Free-form review notes from QA and security (T-003-qa.md, architecture-security.md). */
   reviews: '.crew/reviews',
+  /** The project's stack rules, written by the architect: README.md (index, commands, owners) and one file per technology. */
+  stack: '.crew/stack',
+  stackIndex: '.crew/stack/README.md',
+  /** Write zones, safe commands and packages of this project's stack, merged over the plugin's core policy. */
+  projectPolicy: '.crew/policy.json',
   sessions: '.crew/sessions',
   logs: '.crew/logs',
   hooksLog: '.crew/logs/hooks.jsonl',

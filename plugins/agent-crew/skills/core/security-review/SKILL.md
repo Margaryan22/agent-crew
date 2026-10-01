@@ -37,7 +37,7 @@ End with `Verdict: pass` or `Verdict: changes required` and the must-fix list. T
    - state-changing actions use POST (or the framework's server functions), not GET;
    - errors do not leak stack traces, SQL or other users' data;
    - no secrets or real personal data in code, fixtures, logs or client code.
-3. Run the dependency scanner the stack skill names and a secret search over the task's files:
+3. Run the dependency scanner the stack rules name and a secret search over the task's files:
 
 ```bash
 git show --name-only --format= $(git log --format=%h --grep "^T-NNN:") | sort -u | xargs grep -nEi "(api[_-]?key|secret|password|token)\s*[:=]\s*['\"][^'\"]{8,}" || true

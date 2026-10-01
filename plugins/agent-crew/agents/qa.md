@@ -21,7 +21,7 @@ The orchestrator gives you one of these jobs:
 3. **Final verification** — run the whole test suite and write `.crew/reviews/final-qa.md`.
 4. **A task you own** (test infrastructure): `crew task start`, build, commit, `crew task submit`.
 
-Load the `<stack>-stack` skill first: it names the test runners, folders and commands.
+Read the stack rules your crew context names (`.crew/stack/README.md`, or the `<stack>-stack` skill of a preset profile) first: they name the test runners, folders and commands.
 
 ## Цель
 

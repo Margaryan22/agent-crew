@@ -11,6 +11,8 @@ All project state lives in `.crew/` in the project root. Agents hand each other 
 | Path | Written by | What it is |
 |---|---|---|
 | `crew.json` | `crew init` | contract version, stack profile, project language |
+| `stack/README.md`, `stack/<technology>.md` | architect | the stack rules: technologies and versions, commands, who owns which folders, best practices per technology (only for a stack without a preset profile) |
+| `policy.json` | architect | write zones, safe commands and packages of this project's stack; the hooks read it |
 | `interview.md` | PM (questions), orchestrator (answers) | `### Q:` / `A:` blocks |
 | `brief.md` | PM | the brief; frontmatter `version`, `status`, `review_rounds`, `approved_at` |
 | `brief.review.md` | critic | frontmatter `round`, `verdict`, `checklist` |

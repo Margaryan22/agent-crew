@@ -36,17 +36,35 @@ Requires Claude Code 2.1.271 or later, Node.js 22+, and Docker for the generated
 | `/agent-crew:feature <what to add>` | In an existing crew-built project: the same pipeline for one feature, on a `crew/<feature>` branch. |
 | `/agent-crew:status` | Where the run stands, what the crew needs from you, and spend. |
 
-Settings (`/plugin` → agent-crew, or `claude plugin install … --config KEY=VALUE`): `budget_cap_usd` (default 20), `autonomy` (`full` or `review` — wait for your approval of the brief), `stack_profile` (`tanstack`), `brief_review_minutes`.
+Settings (`/plugin` → agent-crew, or `claude plugin install … --config KEY=VALUE`):
 
-The generated project uses the `tanstack` profile: TanStack Start, Drizzle ORM and PostgreSQL, Tailwind, Vitest and Playwright, with sign-in and roles built in.
+| Setting | Default | |
+| --- | --- | --- |
+| `stack_profile` | `auto` | `auto`: the crew picks the stack that fits the idea, or detects the one your project already uses, and writes rules for exactly those technologies. `tanstack`: a ready-made starter with rules that ship with the plugin. |
+| `autonomy` | `full` | `review` waits for your approval of the brief. |
+| `budget_cap_usd` | `0` (no cap) | Only for pay-per-use sessions (API key, cloud provider, a model billed in usage credits). On a subscription leave it at 0: your plan's limits apply. |
+| `brief_review_minutes` | `10` | How long a host UI waits for the brief approval in `review` autonomy. |
+
+## How the crew learns the stack
+
+Nothing about a framework is hard-coded into the agents. With `stack_profile=auto` the architect starts the architecture phase by setting the stack up (skill `stack-rules`):
+
+1. **Chooses or detects it** — the smallest stack that fits the brief (a technology you asked for in the interview is fixed), or, in existing code, whatever the project already uses. Recorded as an ADR.
+2. **Builds the skeleton** with the framework's own generator, with tests, lint, a local database and sign-in where the brief needs them.
+3. **Writes the rules** in `.crew/stack/`: an index (technologies and versions, commands, who owns which folders, conventions) and one file per technology with best practices and pitfalls for the installed version, taken from its official documentation.
+4. **Writes the policy** in `.crew/policy.json`: each agent's write zone, the stack's safe commands and its packages. The hooks enforce it, and reject entries that would reach beyond the project's code.
+
+Every other agent reads these rules before it writes or reviews code, and reviewers hold the code to them.
+
+The `tanstack` preset skips all of that: TanStack Start, Drizzle ORM and PostgreSQL, Tailwind, Vitest and Playwright, with sign-in and roles built in and rules that are already written and tested.
 
 ## Evals
 
 The crew is measured against Claude Code alone on the same ideas, with hidden acceptance tests: `node evals/runner/run.mjs --dry-run` shows the plan and the maximum spend. [evals/README.md](evals/README.md) covers running it, the component evals (`claude plugin eval`) and **how to add an eval idea**: an idea file with prepared interview answers, 5–10 hidden Playwright tests, and a reference implementation that proves the tests fair.
 
-## Add a stack profile
+## Add a preset stack profile
 
-Everything stack-specific lives in two folders; agents and core skills are stack-agnostic (a test enforces it).
+A preset is optional — `auto` covers any stack — but it starts faster and its rules are tested. Everything stack-specific lives in two folders; agents and core skills are stack-agnostic (a test enforces it).
 
 1. **Template** — `plugins/agent-crew/templates/<profile>/`: a working starter project with sign-in and roles, a `CLAUDE.md` of conventions for the agents, `.env.example` with placeholders only, a local database if needed, unit and end-to-end tests that pass, and a lockfile. `crew scaffold` copies it into new projects.
 2. **Skills** — `plugins/agent-crew/skills/stacks/<profile>/`: an entry skill named `<profile>-stack` (setup commands, folder layout and which agent owns what, conventions, which skill to load when) and focused skills named `<profile>-…` (routes and server code, database, auth, forms, tables and CRUD, reports, tests), each with verified examples and `paths` to load it where it applies.

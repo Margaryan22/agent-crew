@@ -18,7 +18,8 @@ function cleanEnv(extra = {}) {
     if (/^(CREW_|CLAUDE_|EVAL_CREW_|CODEX_|PLUGIN_)/.test(k)) continue;
     env[k] = v;
   }
-  return { ...env, CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_PLUGIN_DATA: tempDir('crew-hook-data-'), ...extra };
+  // Most cases exercise the preset profile's zones; the `auto` stack has its own cases below.
+  return { ...env, CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_PLUGIN_DATA: tempDir('crew-hook-data-'), CREW_STACK_PROFILE: 'tanstack', ...extra };
 }
 
 function run(event, input, { root, env = {} } = {}) {
@@ -95,13 +96,91 @@ describe('a plugin under a symlinked folder', () => {
   });
 });
 
+describe('spending cap', () => {
+  const start = (env, input = {}) => {
+    const root = tempProject();
+    return run('UserPromptExpansion', { session_id: 'pay-1', command_name: 'agent-crew:new-project', ...input }, { root, env }).output.hookSpecificOutput.additionalContext;
+  };
+
+  it('is not mentioned on a subscription, and suggested when the session is paid per use', () => {
+    assert.doesNotMatch(start({}), /Billing:/);
+    assert.match(start({ ANTHROPIC_API_KEY: 'sk-test' }), /Billing: this session is paid per use \(an API key\) and no spending cap is set/);
+    assert.match(start({ CLAUDE_CODE_USE_BEDROCK: '1' }), /a cloud provider account/);
+    // The user set a cap, or a host (the eval runner) manages the budget: nothing to suggest.
+    assert.doesNotMatch(start({ ANTHROPIC_API_KEY: 'sk-test', CLAUDE_PLUGIN_OPTION_BUDGET_CAP_USD: '50' }), /Billing:/);
+    assert.doesNotMatch(start({ ANTHROPIC_API_KEY: 'sk-test', CREW_HOST: 'eval' }), /Billing:/);
+  });
+
+  it('knows the credit-billed model from the session start', () => {
+    const root = tempProject();
+    const data = tempDir('crew-hook-data-');
+    const env = { CLAUDE_PLUGIN_DATA: data };
+    // SessionStart is the only event that names the model; it comes before the crew command.
+    assert.equal(run('SessionStart', { session_id: 'm-1', source: 'startup', model: 'claude-fable-5-1' }, { root, env }).output, undefined);
+    const ctx = run('UserPromptExpansion', { session_id: 'm-1', command_name: 'agent-crew:new-project' }, { root, env }).output.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /Billing: this session is paid per use \(the model claude-fable-5-1, billed in usage credits\)/);
+    const other = tempProject();
+    run('SessionStart', { session_id: 'm-2', source: 'startup', model: 'claude-sonnet-5-5' }, { root: other, env });
+    assert.doesNotMatch(run('UserPromptExpansion', { session_id: 'm-2', command_name: 'agent-crew:new-project' }, { root: other, env }).output.hookSpecificOutput.additionalContext, /Billing:/);
+  });
+});
+
+describe('a stack without a preset (stack_profile=auto)', () => {
+  const auto = { CREW_STACK_PROFILE: 'auto', CREW_HOST: 'eval' };
+  const write = (root, file, content, agent) => run('PreToolUse', { session_id: 's', tool_name: 'Write', tool_input: { file_path: file, content }, ...(agent ? { agent_type: `agent-crew:${agent}` } : {}) }, { root, env: auto }).output?.hookSpecificOutput;
+
+  it('gives code agents no zone until the architect writes the project policy', () => {
+    const root = tempProject();
+    assert.equal(write(root, 'app/page.tsx', 'x', 'frontend').permissionDecision, 'deny');
+    assert.equal(write(root, '.crew/policy.json', '{}', 'architect').permissionDecision, 'allow');
+    assert.equal(write(root, '.crew/stack/README.md', '# Stack', 'architect').permissionDecision, 'allow');
+    assert.equal(write(root, '.crew/policy.json', '{}', 'frontend').permissionDecision, 'deny');
+    mkdirSync(path.join(root, '.crew'), { recursive: true });
+    writeFileSync(path.join(root, '.crew', 'policy.json'), JSON.stringify({ zones: { frontend: ['app/**'], backend: ['api/**', '.crew/**', '../x/**'] }, safeCommands: [['pnpm', 'test'], ['rm'], ['pnpm']], packages: { allow: ['next'] } }));
+    assert.equal(write(root, 'app/page.tsx', 'x', 'frontend').permissionDecision, 'allow');
+    assert.equal(write(root, 'api/users.py', 'x', 'backend').permissionDecision, 'allow');
+    // Entries that reach into .crew/ or out of the project are ignored, the rest applies.
+    assert.match(write(root, '.crew/brief.md', 'x', 'backend').permissionDecisionReason, /outside that zone/);
+    const bash = (command) => run('PreToolUse', { session_id: 's', tool_name: 'Bash', tool_input: { command }, agent_type: 'agent-crew:backend' }, { root, env: auto }).output?.hookSpecificOutput?.permissionDecision;
+    assert.equal(bash('pnpm test'), 'allow');
+    assert.notEqual(bash('pnpm publish'), 'allow');
+    assert.equal(bash('rm -rf /'), 'deny');
+  });
+
+  it('tells the architect at once what is wrong with the project policy', () => {
+    const root = tempProject();
+    mkdirSync(path.join(root, '.crew'), { recursive: true });
+    const file = path.join(root, '.crew', 'policy.json');
+    writeFileSync(file, JSON.stringify({ zones: { pm: ['src/**'], frontend: ['**'] }, safeCommands: [['curl', 'x']], protectedBranches: [] }));
+    const post = () => run('PostToolUse', { session_id: 's', tool_name: 'Write', tool_input: { file_path: file }, agent_type: 'agent-crew:architect' }, { root, env: auto }).output;
+    const blocked = post();
+    assert.equal(blocked.decision, 'block');
+    for (const text of ['"protectedBranches" is not a project setting', 'zones.pm: only architect, qa, frontend, backend, db', 'is the whole project', '"curl" is not a build, test or package tool']) assert.ok(blocked.reason.includes(text), text);
+    writeFileSync(file, JSON.stringify({ zones: { frontend: ['app/**'] }, safeCommands: [['pnpm', 'test'], ['pytest']] }));
+    assert.equal(post(), undefined);
+    writeFileSync(file, '{broken');
+    assert.match(post().reason, /not valid JSON/);
+  });
+
+  it('points agents at the project stack rules once they exist', () => {
+    const root = tempProject();
+    const ctx = () => run('SubagentStart', { session_id: 's', agent_type: 'agent-crew:backend', agent_id: 'a1' }, { root, env: auto }).output.hookSpecificOutput.additionalContext;
+    assert.match(ctx(), /stack is not set up yet: the architect chooses or detects it and writes its rules to \.crew\/stack\//);
+    mkdirSync(path.join(root, '.crew', 'stack'), { recursive: true });
+    writeFileSync(path.join(root, '.crew', 'stack', 'README.md'), '# Stack\n');
+    assert.match(ctx(), /read \.crew\/stack\/README\.md/);
+    assert.doesNotMatch(ctx(), /tanstack/);
+  });
+});
+
 describe('crew sessions', () => {
   it('a crew command writes the session marker and .crew/.gitignore and adds context', () => {
     const root = tempProject();
     const output = startCrewSession(root);
     assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptExpansion');
     assert.match(output.hookSpecificOutput.additionalContext, /Agent Crew session/);
-    assert.match(output.hookSpecificOutput.additionalContext, /autonomy=full, stack_profile=tanstack, budget_cap_usd=20/);
+    assert.match(output.hookSpecificOutput.additionalContext, /autonomy=full, stack_profile=tanstack, budget_cap_usd=0 \(no spending cap\)/);
+    assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /Billing:/);
     const marker = JSON.parse(readFileSync(path.join(root, '.crew', 'sessions', 'sess-1.json'), 'utf8'));
     assert.deepEqual(
       { ...marker, started_at: 'x' },
@@ -111,7 +190,7 @@ describe('crew sessions', () => {
         started_at: 'x',
         assistant: 'claude-code',
         transcript_path: '/tmp/t.jsonl',
-        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 20, stackProfile: 'tanstack', host: 'interactive' },
+        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', host: 'interactive' },
       },
     );
     assert.equal(readFileSync(path.join(root, '.crew', '.gitignore'), 'utf8'), 'logs/\nsessions/\n');

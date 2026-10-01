@@ -31,7 +31,7 @@ Set the phase with `crew status set phase=<phase> --summary "<one line>"` as you
 
 ### 0. Setup
 1. `crew init --language <tag>` — the language of the user's idea (`ru`, `en`, …). All user-facing text uses it.
-2. New project: scaffold from the stack template as the `<stack>-stack` skill says, `git init` if needed, first commit `chore: scaffold from agent-crew template`. Feature: `git switch -c crew/<feature-slug>`.
+2. New project: `git init` if needed. With a preset stack profile (the crew config line says `stack_profile=<name>`, not `auto`): `crew scaffold`, set the project up as the `<stack>-stack` skill says, first commit `chore: scaffold from agent-crew template`. With `stack_profile=auto` there is nothing to scaffold yet — the architect chooses the stack and builds the skeleton in phase 4. Feature: `git switch -c crew/<feature-slug>`.
 
 ### 1. Interview — `phase=interview`
 1. If `.crew/interview.md` already has answers (eval run), skip to step 3.
@@ -51,6 +51,7 @@ Show the human a short summary of the brief: goal, roles, 3–5 key scenarios, o
 - `autonomy=review` — `crew escalate --kind brief-review --question "<Approve the brief?>" --option "Approve" --option "Request changes"` and **end your turn**. On resume, `crew check`: "Approve" → resolve it and continue; "Request changes" → pm revises with the human's comments.
 
 ### 4. Architecture — `phase=architecture`
+0. **Stack** — only when `.crew/stack/README.md` does not exist and the profile is `auto`. **architect**: "Set up the stack for .crew/brief.md with the agent-crew:stack-rules skill: choose it (ADR), create the project skeleton, write the rules in .crew/stack/ and the policy in .crew/policy.json." In existing code say "detect the stack from the code" instead of "choose it" and leave out the skeleton. Until this is done no other agent can write project files. Commit `.crew/` afterwards.
 1. **architect**: "Design the architecture for .crew/brief.md: ADRs in .crew/decisions/, docs/architecture.md with the data model, roles and module map."
 2. **security**: "Review the architecture." → `.crew/reviews/architecture-security.md`.
 3. `Verdict: changes required` → **architect**: "Address the must-fix items in .crew/reviews/architecture-security.md." One round; remaining disagreements become an ADR by the architect.
@@ -64,7 +65,7 @@ Create tasks with `crew task new`, in dependency order:
 - Body with `## Goal`, `## Acceptance` (AC ids + e2e test names), `## Context` (paths) — see the crew-files skill. Pass it with `--body -` and a heredoc.
 - `--budget`: `budget_cap_usd × 0.6 ÷ number of tasks`, rounded to 0.5 (skip when the cap is 0).
 - Every AC is covered by at least one task; say which in the Acceptance section.
-- A task changes only files its owner may write (the `<stack>-stack` skill lists who owns what). A change in another agent's files is a separate task for that agent, or part of one it already has.
+- A task changes only files its owner may write (the stack rules list who owns what: `.crew/stack/README.md`, or the `<stack>-stack` skill of a preset profile). A change in another agent's files is a separate task for that agent, or part of one it already has.
 
 ### 7. Task loop — `phase=tasks`
 Repeat until `crew next` says all tasks are done or only blocked tasks remain:
@@ -85,7 +86,7 @@ If an escalation blocks tasks, keep running every task that does not depend on t
    - test results (from `final-qa.md`);
    - spend (`crew budget`) — on a subscription say these are estimates at API list prices;
    - decisions (ADR list), open escalations, open access-checklist items, known issues and follow-ups;
-   - how to run the app (from the stack skill / README).
+   - how to run the app (from the stack rules / README).
 3. `crew status set phase=done --summary "<one line>"`, commit `.crew/` and `docs/`, and tell the human in 3–5 lines where the report is and what they need to do next.
 
 ## Autonomy and the human
@@ -96,7 +97,7 @@ If an escalation blocks tasks, keep running every task that does not depend on t
 
 ## Budget
 
-`crew check` compares spend with `budget_cap_usd` (reported spend when the host reports it, otherwise the plugin's estimate). At 80% prefer finishing started tasks over starting new ones. At 100%: `crew status set phase=stopped stop_reason=budget_cap --summary "…"`, write the report with what is done and what is left, and end the run.
+With `budget_cap_usd=0` there is no spending cap: skip everything in this section and give tasks no `--budget`. Otherwise `crew check` compares spend with the cap (reported spend when the host reports it, otherwise the plugin's estimate). At 80% prefer finishing started tasks over starting new ones. At 100%: `crew status set phase=stopped stop_reason=budget_cap --summary "…"`, write the report with what is done and what is left, and end the run.
 
 ## When you stop
 

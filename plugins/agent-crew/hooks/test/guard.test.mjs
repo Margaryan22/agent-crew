@@ -74,7 +74,10 @@ describe('stop guard (main session)', () => {
     await crew(root, 'status', 'set', 'phase=final');
     assert.match(stop(root).reason, /finish the final phase/);
     writeFileSync(path.join(root, '.crew', 'costs.log'), `${JSON.stringify({ ts: '2026-09-30T10:00:00Z', source: 'estimate', task: 'T-001', tokens: { input: 1, output: 1 }, turn_cost_usd: 25 })}\n`);
-    assert.match(stop(root).reason, /budget cap is reached/);
+    // No cap by default: spend alone never stops a run…
+    assert.match(stop(root).reason, /finish the final phase/);
+    // …a cap the user (or a host) set does.
+    assert.match(stopDecision({ session_id: 's1' }, root, { CREW_BUDGET_CAP_USD: '20' }).reason, /budget cap is reached/);
   });
 });
 

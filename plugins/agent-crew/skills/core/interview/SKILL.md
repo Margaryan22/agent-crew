@@ -17,7 +17,7 @@ Ask in this order, one `##` heading per block, **2–4 questions per block** (th
 3. **Key scenarios** — the 3–5 things users do most; what "done" looks like for each.
 4. **Reports** — what the owner wants to see (lists, totals, exports), how often.
 5. **Integrations** — payments, email/SMS, calendars, existing spreadsheets or systems to import from.
-6. **Constraints** — devices, languages, deadlines, hosting, legal or privacy rules.
+6. **Constraints** — devices, languages, deadlines, hosting, legal or privacy rules; and one question about technology: must the app be built with something in particular (an existing site, a developer's preference)? Suggested answer: "No preference — the crew chooses".
 
 Skip a block (or a question) when the idea already answers it — write that answer down instead of asking. Aim for 10–16 questions in total.
 

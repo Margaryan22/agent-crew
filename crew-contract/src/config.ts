@@ -20,12 +20,19 @@ export type ConfigSource = 'env' | 'userConfig' | 'eval' | 'default';
 export const CONFIG_DEFAULTS: CrewConfig = {
   autonomy: 'full',
   briefReviewMinutes: 10,
-  budgetCapUsd: 20,
-  stackProfile: 'tanstack',
+  // 0 = no cap. A cap only makes sense where spend is real money (API key, usage credits); on a
+  // subscription the plan's own limits apply, so nothing is capped unless the user asks for it.
+  budgetCapUsd: 0,
+  stackProfile: 'auto',
   host: 'interactive',
 };
 
-export const STACK_PROFILES = ['tanstack'] as const;
+/**
+ * `auto`: the architect picks (or detects) the project's stack and writes its rules into
+ * .crew/stack/. The other names are presets the plugin ships with a template and ready rules.
+ */
+export const AUTO_STACK = 'auto';
+export const STACK_PROFILES = [AUTO_STACK, 'tanstack'] as const;
 
 type Env = Record<string, string | undefined>;
 

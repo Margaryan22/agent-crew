@@ -41,7 +41,9 @@
     ],
     "architect": [
       ".crew/decisions/**",
-      "docs/**"
+      "docs/**",
+      ".crew/stack/**",
+      ".crew/policy.json"
     ],
     "keeper": [
       ".crew/status.md",
@@ -221,6 +223,50 @@
       "worktree"
     ]
   ],
+  "projectCommands": {
+    "$comment": "Tools a project's own policy (.crew/policy.json) may add safe commands for. A prefix needs a subcommand (\"npm test\"), except for the single-purpose tools in \"alone\".",
+    "tools": [
+      "npm",
+      "npx",
+      "pnpm",
+      "yarn",
+      "bun",
+      "bunx",
+      "deno",
+      "node",
+      "python",
+      "python3",
+      "pip",
+      "pip3",
+      "uv",
+      "poetry",
+      "pytest",
+      "go",
+      "cargo",
+      "dotnet",
+      "mvn",
+      "gradle",
+      "./gradlew",
+      "php",
+      "composer",
+      "ruby",
+      "bundle",
+      "rails",
+      "rake",
+      "make",
+      "mix",
+      "swift"
+    ],
+    "alone": [
+      "pytest"
+    ]
+  },
+  "payPerUse": {
+    "$comment": "Models billed in usage credits even on a subscription (matched as substrings of the model id). With one of them, or with an API key or cloud provider credentials, the crew reminds the user that no spending cap is set.",
+    "models": [
+      "fable"
+    ]
+  },
   "crewCommands": {
     "$comment": "Who may run which state-changing crew command. \"$stage\" means: only the agent named by --stage (qa or security). Commands not listed (show, list, next, check, start, submit, fail, escalate, …) are open to every agent.",
     "init": [

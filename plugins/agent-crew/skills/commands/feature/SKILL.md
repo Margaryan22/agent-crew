@@ -24,7 +24,7 @@ State of the crew project in this folder:
 
 1. Load the skills `agent-crew:orchestration` and `agent-crew:stuck-detection` with the Skill tool (skip one already loaded). Follow orchestration, with the changes below.
 2. Empty request → ask for it in one short question.
-3. **Stack check.** This version supports the stack profiles the plugin ships (`tanstack`: TanStack Start + Drizzle + PostgreSQL). Read `package.json`; if the project uses another framework, tell the user the crew cannot work on it yet and stop.
+3. **Stack.** The crew works on the stack the project already has. If `.crew/stack/README.md` is missing and the project was not built from a preset profile, the first architect call in step 5 is: "Detect the stack from the code and write .crew/stack/ and .crew/policy.json with the agent-crew:stack-rules skill." Never migrate the project to another framework.
 4. **Setup.**
    - No `.crew/`: `crew init --language <tag of the request's language>`.
    - A previous run is unfinished (phase not `done`): ask the user whether to finish it first.

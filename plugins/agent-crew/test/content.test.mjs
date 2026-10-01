@@ -5,7 +5,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { KNOWN_AGENTS, parseFrontmatter } from '../lib/crew-contract.mjs';
+import { AUTO_STACK, KNOWN_AGENTS, parseFrontmatter, STACK_PROFILES } from '../lib/crew-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
@@ -120,7 +120,7 @@ describe('skills (SPEC §10)', () => {
 
   it('core has the curated library', () => {
     const core = skills.filter((s) => s.dir.startsWith('skills/core/')).map((s) => s.name).sort();
-    assert.deepEqual(core, ['acceptance-tests', 'brief', 'code-review', 'crew-files', 'git-process', 'interview', 'orchestration', 'security-review', 'stuck-detection']);
+    assert.deepEqual(core, ['acceptance-tests', 'brief', 'code-review', 'crew-files', 'git-process', 'interview', 'orchestration', 'security-review', 'stack-rules', 'stuck-detection']);
   });
 
   for (const s of skills) {
@@ -142,7 +142,18 @@ describe('stack profiles (SPEC §4)', () => {
     for (const a of agents) assert.doesNotMatch(a.body, STACK_TERMS, a.file);
   });
 
-  for (const profile of manifest.userConfig.stack_profile.options) {
+  it('defaults to auto: the architect writes the rules for the stack the project really has', () => {
+    assert.equal(manifest.userConfig.stack_profile.default, 'auto');
+    assert.deepEqual(manifest.userConfig.stack_profile.options, [...STACK_PROFILES]);
+    assert.ok(list(agents.find((a) => a.data.name === 'architect').data.skills).includes(`${manifest.name}:stack-rules`));
+  });
+
+  it('has no spending cap unless the user sets one', () => {
+    assert.equal(manifest.userConfig.budget_cap_usd.default, 0);
+  });
+
+  // Presets: a stack the plugin ships a template and ready-made rules for.
+  for (const profile of manifest.userConfig.stack_profile.options.filter((p) => p !== AUTO_STACK)) {
     it(`${profile}: entry skill, policy and template exist`, () => {
       assert.ok(skillNames.has(`${profile}-stack`), `skills/stacks/${profile}/${profile}-stack/SKILL.md`);
       assert.ok(statSync(path.join(root, 'skills', 'stacks', profile, 'policy.json')).isFile());

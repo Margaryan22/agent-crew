@@ -47,7 +47,7 @@ When you answer a question here, Agent Crew writes it to `.crew/escalations/` an
 | Agent Crew: Open Brief / Open Report / Open Status File / Open Access Checklist | Open the crew's documents |
 | Agent Crew: Show Log | Open the **Agent Crew** output channel |
 
-The crew's own settings — budget cap, autonomy (`full` or `review`), stack profile — live in Claude Code: `/plugin` → agent-crew → Configure.
+The crew's own settings — stack (`auto` by default: the crew picks or detects it), autonomy (`full` or `review`), and an optional spending cap for pay-per-use sessions — live in Claude Code: `/plugin` → agent-crew → Configure.
 
 ## Requirements
 

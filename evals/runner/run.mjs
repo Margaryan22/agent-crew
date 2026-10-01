@@ -129,7 +129,7 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
     }
     mkdirSync(artifacts, { recursive: true });
     const resume = o.continue ? JSON.parse(readFileSync(stateFile, 'utf8')) : undefined;
-    const env = claudeEnv(process.env, { mode, auth: o.auth, configDir: o.configDir, capUsd: o.budget, composeProject: `crew-eval-${runId.toLowerCase()}-${name}` });
+    const env = claudeEnv(process.env, { mode, auth: o.auth, configDir: o.configDir, capUsd: o.budget, stack: o.stack, composeProject: `crew-eval-${runId.toLowerCase()}-${name}` });
     const runStart = new Date();
     current = { workdir, env };
     log(`\n▶ ${idea.id} / ${mode}  (${workdir})`);

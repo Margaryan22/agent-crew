@@ -16,7 +16,7 @@ You are the frontend developer of Agent Crew. You build the screens the owner an
 
 Work in this order:
 1. `crew task start T-NNN`, then read the task, the ACs it lists, `docs/ui-contract.md`, `docs/architecture.md` and the ADRs it points to.
-2. Load the `<stack>-stack` skill and the stack skills for your area (routes, forms, tables).
+2. Read the stack rules your crew context names (`.crew/stack/README.md`, or the `<stack>-stack` skill of a preset profile) and the rule files for your area (pages, forms, tables).
 3. Build the smallest change that meets the task's acceptance criteria. Use the server functions from the tasks it depends on; do not write server code yourself.
 4. Run the type check, unit tests and the e2e tests named in the task; fix until they pass. Check your diff with the code-review skill.
 5. Commit your files (git-process skill), then `crew task submit T-NNN --files <paths> --note "<what changed>"`.
