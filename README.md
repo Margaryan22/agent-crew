@@ -66,3 +66,7 @@ claude --plugin-dir plugins/agent-crew                             # try the plu
 ```
 
 The project template is tested on its own: `cd plugins/agent-crew/templates/tanstack && npm ci && cp .env.example .env && npm run setup && npm run typecheck && npm test && npm run test:e2e`.
+
+## License
+
+[MIT](LICENSE).

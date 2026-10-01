@@ -2,6 +2,7 @@
   "name": "@agent-crew/crew-contract",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "The .crew/ file contract shared by the agent-crew plugin and the Agent Crew VS Code extension.",
   "type": "module",
   "main": "./src/index.ts",

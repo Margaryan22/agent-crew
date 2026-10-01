@@ -9,6 +9,7 @@
   },
   "homepage": "https://github.com/Margaryan22/agent-crew",
   "repository": "https://github.com/Margaryan22/agent-crew",
+  "license": "MIT",
   "keywords": ["agents", "team", "project-generator", "tanstack", "drizzle", "playwright"],
   "skills": ["./skills/core", "./skills/stacks/tanstack", "./skills/commands"],
   "userConfig": {

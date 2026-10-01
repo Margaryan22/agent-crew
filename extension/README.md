@@ -63,3 +63,7 @@ Agent Crew has no telemetry, no account and no backend. It reads `.crew/` in you
 ## Support
 
 See [SUPPORT.md](SUPPORT.md). The plugin, this extension and their tests are at <https://github.com/Margaryan22/agent-crew>.
+
+## License
+
+[MIT](LICENSE).

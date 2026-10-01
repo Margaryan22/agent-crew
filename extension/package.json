@@ -4,7 +4,7 @@
   "description": "A crew of AI agents that builds small-business web apps inside Claude Code, on your own Claude subscription — interview, brief, architecture, tests, reviewed code — with a live view of tasks, questions and spend.",
   "version": "0.3.0",
   "publisher": "whysargis",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "icon": "resources/icon.png",
   "galleryBanner": {
     "color": "#1B1F2A",
