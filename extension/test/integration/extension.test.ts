@@ -4,7 +4,7 @@ import * as assert from 'node:assert';
 import * as vscode from 'vscode';
 import type { CrewTestApi } from '../../src/extension';
 
-const EXT_ID = 'whysargis.agent-crew';
+const EXT_ID = 'whysargis.agent-crew-claude-code';
 
 async function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<void> {
   const start = Date.now();

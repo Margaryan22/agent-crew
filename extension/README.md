@@ -1,4 +1,4 @@
-# Agent Crew
+# Agent Crew for Claude Code
 
 A crew of AI agents that builds small-business web apps — booking, inventory, orders, simple CRMs — **inside Claude Code, on your own Claude subscription**. Describe the tool you need; the crew interviews you, writes and reviews a brief, designs the architecture, writes acceptance tests first, builds task by task with QA and security review, and hands you a report. It asks you only when it has to.
 
@@ -12,7 +12,7 @@ This extension is the control panel: it sets up the **agent-crew** plugin in Cla
 - The crew is the open-source **agent-crew** plugin: nine agents (PM, critic, architect, QA, frontend, backend, database, security, context keeper), curated skills, and safety hooks that block unvetted packages, pushes to `main`, secrets in `.env` and deletes outside the project.
 - All state lives in your repository, in `.crew/` — brief, tasks, decisions, questions, status, report. This extension reads it; nothing is stored elsewhere.
 
-Generated projects use TanStack Start (React, TypeScript), Drizzle ORM with PostgreSQL, Tailwind, Vitest and Playwright, with sign-in and roles built in.
+The crew picks the stack that fits your idea — or works with the one your project already has — and writes its own rules for exactly those technologies. By default it builds on an embedded database, so there is no Docker and no database server to install. A ready-made TanStack Start + PostgreSQL starter is available as a preset.
 
 ## Getting started
 
@@ -20,7 +20,7 @@ Follow **Get started with Agent Crew** (*Help → Welcome*), or:
 
 1. **Install Claude Code** (the extension offers it) and sign in.
 2. **Agent Crew: Install Plugin into Claude Code** — Claude Code opens its plugin dialog; confirm.
-3. **Agent Crew: Check Setup** — Node.js 22+, git and Docker (the project's database runs in Docker).
+3. **Agent Crew: Check Setup** — Node.js 22+ and git. Docker is reported but not required.
 4. Open an **empty folder**, run **Agent Crew: New Project** and describe your idea in any language. Claude Code opens with the command filled in — press **Enter**, then answer the interview.
 
 ## While the crew works
@@ -45,7 +45,7 @@ When you answer a question here, Agent Crew writes it to `.crew/escalations/` an
 | Agent Crew: Answer the Crew's Question | Answer an open question from the crew |
 | Agent Crew: Show Status | Open the Agent Crew view |
 | Agent Crew: Install Claude Code / Install Plugin into Claude Code | One-time setup |
-| Agent Crew: Check Setup | Check Claude Code, the plugin, Node.js, git and Docker |
+| Agent Crew: Check Setup | Check Claude Code, the plugin, Node.js and git (Docker is optional) |
 | Agent Crew: Open Brief / Open Report / Open Status File / Open Access Checklist | Open the crew's documents |
 | Agent Crew: Show Log | Open the **Agent Crew** output channel |
 
@@ -54,7 +54,7 @@ The crew's own settings — stack (`auto` by default: the crew picks or detects 
 ## Requirements
 
 - **Claude Code** extension, signed in (Claude Pro or Max, or an API key). On a subscription the crew uses your plan's limits; the spend shown here is the plugin's estimate at API list prices.
-- **Node.js 22+**, **git** and **Docker** for the generated project.
+- **Node.js 22+** and **git**. Docker only if you choose the TanStack preset or your project needs a database server.
 - A **trusted** workspace — the crew edits files and runs commands.
 - VS Code 1.94 or newer, or Cursor / Windsurf / VSCodium (through Open VSX) with Claude Code installed.
 

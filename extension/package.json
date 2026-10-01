@@ -1,6 +1,6 @@
 {
-  "name": "agent-crew",
-  "displayName": "Agent Crew",
+  "name": "agent-crew-claude-code",
+  "displayName": "Agent Crew for Claude Code",
   "description": "A crew of AI agents that builds small-business web apps inside Claude Code, on your own Claude subscription — interview, brief, architecture, tests, reviewed code — with a live view of tasks, questions and spend.",
   "version": "0.4.0",
   "publisher": "whysargis",
