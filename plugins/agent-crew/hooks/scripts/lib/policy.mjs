@@ -42,6 +42,13 @@ export function zonesFor(role, policy) {
   return [...(policy.zones['*'] ?? []), ...(policy.zones[role] ?? [])];
 }
 
+/** Roles whose own zone covers a project path: who a blocked write should be handed to. */
+export function ownersOf(rel, policy, matches) {
+  return Object.entries(policy.zones)
+    .filter(([role, globs]) => role !== '*' && matches(rel, globs))
+    .map(([role]) => role);
+}
+
 export function hostAllowed(host, policy) {
   const h = host.toLowerCase().replace(/^\[|\]$/g, '');
   return policy.network.allowHosts.some((pattern) => {

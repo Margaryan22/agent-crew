@@ -19,6 +19,10 @@ user-invocable: false
 
 The CLI counts attempts and compares error hashes; you do not keep counters in your head. Read the **Next:** line of every `crew task fail` / `reject` and do exactly that.
 
+## A hook refused a write: hand it over
+
+When an executor reports that a hook blocked a file outside its zone, the hook's message names the agent that owns the file. This is not a stuck task and not a question for the human. Delegate that one change to the owner ("For T-NNN: add the new variables to <file>, as T-NNN's Log says"), then run the task again; record it with `crew task fail` only if the task really cannot proceed meanwhile. Ask the human only for what no agent can provide: real credentials, accounts, product decisions.
+
 ## The ladder
 
 Each rung allows up to 3 failed checks; a repeated error climbs at once.

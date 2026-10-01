@@ -23,7 +23,9 @@
     "db": [
       "src/db/**",
       "drizzle/**",
-      "drizzle.config.ts"
+      "drizzle.config.ts",
+      ".env",
+      ".env.local"
     ],
     "qa": [
       "tests/**",

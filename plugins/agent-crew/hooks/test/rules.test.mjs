@@ -217,6 +217,17 @@ describe('write zones (§5)', () => {
     await expectDeny({ tool_name: 'NotebookEdit', tool_input: { notebook_path: 'analysis.ipynb' }, ...FRONTEND }, /frontend/);
   });
 
+  it('names the agent that owns a blocked file', async () => {
+    // Without the owner the first live run asked the human to edit .env, which two agents could have done.
+    await expectDeny(write('src/db/schema.ts', 'x', FRONTEND), /say in your result that src\/db\/schema\.ts needs this change, and the orchestrator will hand it to the db agent/);
+    await expectDeny(write('src/server/auth.ts', 'x'), /Delegate this change to the backend agent/);
+    await expectDeny(write('.env.example', 'X=1', FRONTEND), /hand it to the architect agent/);
+    await expectDeny(write('notes/todo.txt', 'x', FRONTEND), /the architect, who decides where it belongs/);
+    // Local settings for the database and the seed are the db agent's too.
+    await expectNotDenied(write('.env', 'SEED_OWNER_EMAIL=owner@example.com\n', { agent_type: 'agent-crew:db' }), 'allow');
+    await expectDeny(write('.env', 'X=1', FRONTEND), /hand it to the architect, backend or db agent/);
+  });
+
   it('treats unknown agents like the orchestrator and leaves temp writes to the host', async () => {
     await expectDeny(write('src/x.ts', 'x', { agent_type: 'general-purpose' }), /orchestrator/);
     await expectNotDenied(write('/tmp/notes.md', 'x', FRONTEND), 'none');

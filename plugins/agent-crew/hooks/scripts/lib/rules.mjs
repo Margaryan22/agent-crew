@@ -4,7 +4,7 @@
 
 import path from 'node:path';
 import { basename, parseShell } from './shell.mjs';
-import { hostAllowed, roleOf, zonesFor } from './policy.mjs';
+import { hostAllowed, ownersOf, roleOf, zonesFor } from './policy.mjs';
 import { expandHome, isEnvSecretFile, isInside, matchesAny, secretKeysIn, tempDirs, toPosix } from './util.mjs';
 
 /**
@@ -460,7 +460,11 @@ function evaluateWrite(tool, toolInput, role, cwd, ctx, input) {
   reasons.push(...checkCrewFields(tool, toolInput, abs, rel, ctx));
   const zones = zonesFor(role, ctx.policy);
   if (!matchesAny(rel, zones)) {
-    reasons.push(`the ${role} agent may only write ${zones.length ? zones.join(', ') : 'nothing in the project'} — ${rel} is outside that zone. Hand this change to the agent that owns it.`);
+    // Name the owner: without it the first live run escalated a .env edit to the human although two agents could have made it.
+    const owners = ownersOf(rel, ctx.policy, matchesAny).filter((r) => r !== role && r !== 'orchestrator');
+    const who = owners.length ? `the ${owners.length > 1 ? `${owners.slice(0, -1).join(', ')} or ${owners.at(-1)}` : owners[0]} agent` : 'the architect, who decides where it belongs';
+    const next = role === 'orchestrator' ? `Delegate this change to ${who}` : `Do not work around it: say in your result that ${rel} needs this change, and the orchestrator will hand it to ${who}`;
+    reasons.push(`the ${role} agent may only write ${zones.length ? zones.join(', ') : 'nothing in the project'} — ${rel} is outside that zone. ${next}.`);
   }
   return reasons.length ? { decision: 'deny', reasons, role } : { decision: 'allow', reasons: [`${rel} is inside the ${role} zone`], role };
 }

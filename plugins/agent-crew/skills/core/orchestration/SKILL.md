@@ -64,6 +64,7 @@ Create tasks with `crew task new`, in dependency order:
 - Body with `## Goal`, `## Acceptance` (AC ids + e2e test names), `## Context` (paths) — see the crew-files skill. Pass it with `--body -` and a heredoc.
 - `--budget`: `budget_cap_usd × 0.6 ÷ number of tasks`, rounded to 0.5 (skip when the cap is 0).
 - Every AC is covered by at least one task; say which in the Acceptance section.
+- A task changes only files its owner may write (the `<stack>-stack` skill lists who owns what). A change in another agent's files is a separate task for that agent, or part of one it already has.
 
 ### 7. Task loop — `phase=tasks`
 Repeat until `crew next` says all tasks are done or only blocked tasks remain:
