@@ -23,10 +23,11 @@ Work on T-004. Task: .crew/tasks/T-004.md. Brief: .crew/brief.md (AC-03, AC-04).
 - Use `run_in_background: false` when the next step depends on the result. To run independent work in parallel, put several Agent calls in **one message**; they run concurrently and all results come back together.
 - Run at most 3 agents at once, and never two tasks whose `files` or areas overlap.
 - When an agent returns, trust `.crew/` over its message: check `crew task show T-NNN` or `crew next`.
+- An Agent call that comes back interrupted or with an API or network error did not finish, and nobody decided to stop it. Check what it left (`git status`, the files it was to write), then run it once more with the same prompt plus "Continue from what is already there." A second failure of the same kind → stuck-detection skill.
 
 ## Phases
 
-Set the phase with `crew status set phase=<phase> --summary "<one line>"` as you enter it. After each phase, commit `.crew/` and `docs/`: `git add -- .crew docs && git commit -m "crew: <what happened>"`.
+Set the phase with `crew status set phase=<phase> --summary "<one line>"` as you enter it. After each phase, commit the crew's files: `git add -- .crew && git commit -m "crew: <what happened>"`. From the architecture phase on, `docs/` exists and goes in too: `git add -- .crew docs` (git refuses a path that does not exist yet).
 
 ### 0. Setup
 1. `crew init --language <tag>` — the language of the user's idea (`ru`, `en`, …). All user-facing text uses it.
@@ -41,7 +42,7 @@ Set the phase with `crew status set phase=<phase> --summary "<one line>"` as you
 1. **pm**: "Write .crew/brief.md and .crew/access-checklist.md from .crew/interview.md and the idea: <idea>."
 2. **critic**: "Review .crew/brief.md, round N." Read the verdict in `.crew/brief.review.md`.
 3. `revise` → **pm**: "Revise .crew/brief.md for .crew/brief.review.md round N." → back to 2. At most 3 rounds.
-4. `approve` → edit `.crew/brief.md` frontmatter: `status: approved`, `approved_at: <now>`.
+4. `approve` → edit `.crew/brief.md` frontmatter: `status: approved`, `approved_at: <now>` — take the time from `date -u +%Y-%m-%dT%H:%M:%SZ`, never guess it.
 5. `deadlock`, or still `revise` after round 3 → stuck `pm_critic_deadlock` (stuck-detection skill); in `autonomy=full` continue with the recommended option at once and list the critic's open points under Risks.
 
 ### 3. Notify

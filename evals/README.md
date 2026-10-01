@@ -53,6 +53,8 @@ Before any setup, the runner checks the sign-in with `claude auth status` (no mo
 
 Needs Node.js 22+, Docker running, and about 1 GB of disk per run while it runs.
 
+Keep the computer awake for the whole run. On macOS the runner holds off idle sleep by itself (`caffeinate`), but a closed laptop lid on battery still puts the machine to sleep: the run freezes, the agent call in flight is cut, and the crew has to repeat it.
+
 ### Self-test without a model
 
 `evals/runner/test/fake-claude.mjs` stands in for Claude Code and "builds" each idea by copying its reference implementation from `evals/reference/<idea>/`; in the plugin mode it also leaves an escalation for the runner to answer. The whole pipeline — setup, the conversation loop, hidden tests, CSV — then runs for real, and every hidden test must pass:

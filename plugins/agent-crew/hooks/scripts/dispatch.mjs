@@ -3,7 +3,7 @@
 // Reads the hook input from stdin and prints the hook output to stdout. Outside crew sessions it
 // exits immediately without loading the policy or the contract bundle.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -201,4 +201,18 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+/**
+ * Is this file the script Node was started with? Compared by real path: Node resolves symlinks
+ * for the module (import.meta.url) but not for argv, so a plugin under a symlinked folder
+ * (macOS /var → /private/var, a symlinked home) would otherwise never run its hooks.
+ */
+function isEntryPoint() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) await main();

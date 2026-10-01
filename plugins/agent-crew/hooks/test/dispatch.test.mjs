@@ -2,7 +2,7 @@
 // output on stdout. No network: the package cases here never reach the registry.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { pluginRoot, tempDir, tempProject } from './helpers.mjs';
@@ -73,6 +73,25 @@ describe('outside crew sessions', () => {
     assert.equal(res.status, 0);
     assert.equal(res.stdout, '');
     assert.match(res.stderr, /invalid input/);
+  });
+});
+
+describe('a plugin under a symlinked folder', () => {
+  // Found in the first live run: the eval copy of the plugin sat in macOS's /var/folders (a
+  // symlink to /private/var), the entry-point check failed, and every hook was a silent no-op.
+  it('still runs its hooks', () => {
+    const root = tempProject();
+    const link = path.join(tempDir('crew-hook-link-'), 'plugin');
+    symlinkSync(pluginRoot, link, 'dir');
+    const res = spawnSync(process.execPath, [path.join(link, 'hooks', 'scripts', 'dispatch.mjs'), 'PreToolUse'], {
+      input: JSON.stringify({ cwd: root, hook_event_name: 'PreToolUse', session_id: 's', tool_name: 'Bash', tool_input: { command: 'rm -rf /' } }),
+      env: cleanEnv({ CLAUDE_PROJECT_DIR: root, CLAUDE_PLUGIN_ROOT: link, CREW_HOST: 'eval' }),
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(JSON.parse(res.stdout).hookSpecificOutput.permissionDecision, 'deny');
+    assert.equal(readJsonLines(path.join(root, '.crew', 'logs', 'hooks.jsonl')).length, 1);
   });
 });
 

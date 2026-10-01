@@ -115,6 +115,13 @@ export function parseResult(stdout) {
   return undefined;
 }
 
+const running = new Set();
+
+/** Stops the Claude Code calls in flight — the runner itself is being stopped. */
+export function stopRunning() {
+  for (const child of running) child.kill('SIGTERM');
+}
+
 /**
  * Runs the Claude Code CLI and resolves with its parsed result.
  * @returns {Promise<{ result?: object, code: number | null, stderr: string, durationMs: number, timedOut: boolean }>}
@@ -123,6 +130,9 @@ export function runClaude(bin, args, { cwd, env, timeoutMs }) {
   return new Promise((resolve) => {
     const started = Date.now();
     const child = spawn(bin, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    running.add(child);
+    child.once('close', () => running.delete(child));
+    child.once('error', () => running.delete(child));
     let stdout = '';
     let stderr = '';
     let timedOut = false;

@@ -10,11 +10,12 @@
 //
 // Every run calls the model and costs money or plan usage: at most ideas × modes × --budget.
 
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { authProblem, authStatus, claudeArgs, claudeEnv, runClaude } from './lib/claude.mjs';
+import { authProblem, authStatus, claudeArgs, claudeEnv, runClaude, stopRunning } from './lib/claude.mjs';
 import { appendRow } from './lib/csv.mjs';
 import { countTests, installHiddenTests, runHiddenTests } from './lib/hidden.mjs';
 import { interviewFile, loadIdeas } from './lib/ideas.mjs';
@@ -79,6 +80,14 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   if (problem) throw new Error(problem);
   if (o.auth === 'subscription') log(`Signed in: ${status.authMethod}${status.apiProvider && status.apiProvider !== 'firstParty' ? ` via ${status.apiProvider}` : ''}.`);
 
+  // A run takes hours. On macOS hold off idle sleep while this process lives: a sleeping machine
+  // freezes the run and cuts the agent call in flight. (A closed lid on battery still sleeps.)
+  if (process.platform === 'darwin') {
+    spawn('caffeinate', ['-i', '-w', String(process.pid)], { stdio: 'ignore', detached: true })
+      .on('error', () => undefined)
+      .unref();
+  }
+
   const started = new Date();
   const runId = stamp(started);
   const csvFile = path.join(o.out, `${started.toISOString().slice(0, 10)}.csv`);
@@ -92,6 +101,7 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   // Ctrl+C or a CI timeout must not leave a database container behind.
   let current;
   const stop = (signal) => {
+    stopRunning();
     if (current && !o.keep) teardownWorkspace(current);
     log(`\nStopped by ${signal}.`);
     process.exit(signal === 'SIGINT' ? 130 : 143);
@@ -185,7 +195,8 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   return 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compared by real path: Node resolves symlinks for the module but not for argv.
+if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   main(process.argv.slice(2)).then(
     (code) => {
       process.exitCode = code;

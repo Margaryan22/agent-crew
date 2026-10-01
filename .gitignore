@@ -9,3 +9,4 @@ vsix/
 evals/results/*/
 plugins/agent-crew/evals/results/
 evals/.claude-config/
+evals/results/*.log
