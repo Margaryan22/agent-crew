@@ -5,9 +5,9 @@ model: sonnet
 effort: medium
 tools: Read, Write, Edit, Glob, Grep, Bash
 skills:
-  - crew-files
-  - interview
-  - brief
+  - agent-crew:crew-files
+  - agent-crew:interview
+  - agent-crew:brief
 maxTurns: 40
 color: blue
 ---

@@ -5,9 +5,9 @@ model: sonnet
 effort: medium
 tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, Skill
 skills:
-  - crew-files
-  - git-process
-  - code-review
+  - agent-crew:crew-files
+  - agent-crew:git-process
+  - agent-crew:code-review
 maxTurns: 100
 color: yellow
 ---

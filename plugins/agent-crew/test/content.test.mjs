@@ -77,8 +77,14 @@ describe('agents (SPEC §5)', () => {
         if (!tools.includes('Bash')) assert.ok(['critic'].includes(agent.data.name), `${agent.data.name} needs Bash for the crew CLI`);
       });
 
-      it('preloads skills that exist', () => {
-        for (const s of list(agent.data.skills)) assert.ok(skillNames.has(s), `skill ${s} not found`);
+      it('preloads skills that exist, by their plugin-qualified names', () => {
+        // Claude Code resolves a bare name to an exact match first, so `security-review` or
+        // `code-review` would preload its built-in skill of that name (or the user's own)
+        // instead of ours — in the first live run that kept the security agent from starting.
+        for (const s of list(agent.data.skills)) {
+          assert.ok(s.startsWith(`${manifest.name}:`), `skill ${s}: write ${manifest.name}:${s}`);
+          assert.ok(skillNames.has(s.slice(manifest.name.length + 1)), `skill ${s} not found`);
+        }
       });
 
       it('has the SPEC sections in order', () => {

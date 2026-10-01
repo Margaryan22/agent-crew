@@ -5,8 +5,8 @@ model: opus
 effort: high
 tools: Read, Write, Glob, Grep, Bash, Skill
 skills:
-  - crew-files
-  - security-review
+  - agent-crew:crew-files
+  - agent-crew:security-review
 maxTurns: 40
 color: red
 ---

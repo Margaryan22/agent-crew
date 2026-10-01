@@ -5,7 +5,7 @@ model: haiku
 effort: low
 tools: Read, Write, Edit, Glob, Grep, Bash
 skills:
-  - crew-files
+  - agent-crew:crew-files
 maxTurns: 15
 color: blue
 ---

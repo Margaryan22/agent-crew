@@ -5,8 +5,8 @@ model: opus
 effort: high
 tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, Skill
 skills:
-  - crew-files
-  - git-process
+  - agent-crew:crew-files
+  - agent-crew:git-process
 maxTurns: 60
 color: purple
 ---

@@ -5,10 +5,10 @@ model: sonnet
 effort: medium
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill
 skills:
-  - crew-files
-  - acceptance-tests
-  - code-review
-  - git-process
+  - agent-crew:crew-files
+  - agent-crew:acceptance-tests
+  - agent-crew:code-review
+  - agent-crew:git-process
 maxTurns: 80
 color: green
 ---

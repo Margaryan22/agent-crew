@@ -5,7 +5,7 @@ model: opus
 effort: high
 tools: Read, Write, Glob, Grep
 skills:
-  - brief
+  - agent-crew:brief
 maxTurns: 20
 color: pink
 ---
