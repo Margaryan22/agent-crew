@@ -321,6 +321,9 @@
     ],
     "lesson add": [
       "orchestrator"
+    ],
+    "size set": [
+      "orchestrator"
     ]
   },
   "prices": {

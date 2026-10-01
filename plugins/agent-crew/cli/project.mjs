@@ -174,6 +174,16 @@ export class Project {
     return config;
   }
 
+  /**
+   * How much process this project gets. A setting other than `auto` decides; otherwise what the
+   * orchestrator recorded with `crew size set`, and `standard` until it has.
+   */
+  size() {
+    const setting = this.config().runSize;
+    if (setting === 'prototype' || setting === 'standard') return setting;
+    return this.manifest()?.size === 'prototype' ? 'prototype' : 'standard';
+  }
+
   latestMarker() {
     let best;
     for (const name of this.list(C.CREW_PATHS.sessions)) {

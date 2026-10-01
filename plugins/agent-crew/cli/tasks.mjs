@@ -199,7 +199,10 @@ export async function taskPass(project, args, io) {
   requireStatus(task, ['review'], 'pass');
   if (task.data.review_stage !== stage) throw new StateError(`${task.id} is in ${task.data.review_stage ?? 'no'} review, not ${stage}`);
   const body = appendToSection(task.body, 'Log', logLine(project, `${stage} review passed${note ? `: ${oneLine(note)}` : ''}`));
-  if (stage === 'qa' && project.config().reviewDepth !== 'every-task') {
+  if (stage === 'qa' && project.size() === 'prototype') {
+    await project.saveTask({ ...task, body }, { status: 'done', review_stage: undefined });
+    io.log(`${task.id} passed QA and is done (prototype: no separate security review).`);
+  } else if (stage === 'qa' && project.config().reviewDepth !== 'every-task') {
     await project.saveTask({ ...task, body }, { status: 'done', review_stage: undefined });
     io.log(`${task.id} passed QA and is done (review depth ${project.config().reviewDepth}: security reviews the whole project in the final phase).`);
   } else if (stage === 'qa') {

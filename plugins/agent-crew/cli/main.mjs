@@ -39,6 +39,7 @@ Escalations and decisions
 Project
   crew init [--stack tanstack] [--language ru]     crew config
   crew scaffold [--stack tanstack]                 copy the stack's project template (never overwrites)
+  crew size show | crew size set prototype|standard   how much process the run gets (orchestrator)
   crew status show                                 crew status set phase=P [active_tasks=T-1,T-2] [--summary S] [--body …]
   crew check                                       budget cap, task budgets, edit flip-flops, escalations
   crew budget        crew summary        crew validate [files…]
@@ -74,6 +75,8 @@ const ROUTES = {
   'lesson add': lessons.lessonAdd,
   'lesson list': lessons.lessonList,
   init: report.init,
+  'size show': report.sizeShow,
+  'size set': report.sizeSet,
   scaffold: report.scaffold,
   config: report.config,
   'status show': report.statusShow,

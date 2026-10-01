@@ -53,6 +53,31 @@ export async function init(project, args, io) {
   io.log(`Initialised .crew/ (stack ${manifest.stack_profile}${language ? `, language ${language}` : ''}).`);
 }
 
+/** `crew size show` / `crew size set prototype|standard`: how much process the run gets. */
+export function sizeShow(project, args, io) {
+  const json = args.bool('json');
+  args.done();
+  const setting = project.config().runSize;
+  const size = project.size();
+  if (json) io.json({ size, setting, recorded: project.manifest()?.size ?? null });
+  else io.log(`Size: ${size}${setting !== 'auto' ? ' (set by the user)' : project.manifest()?.size ? '' : ' (not sized yet — the orchestrator sizes the run after the brief)'}`);
+}
+
+export async function sizeSet(project, args, io) {
+  const size = args.positional[0];
+  args.done();
+  if (!C.PROJECT_SIZES.includes(size)) throw new UsageError(`crew size set ${C.PROJECT_SIZES.join('|')}`);
+  const manifest = project.manifest();
+  if (!manifest) throw new UsageError('no crew project here: run crew init first');
+  const setting = project.config().runSize;
+  if (setting !== 'auto' && setting !== size) {
+    io.log(`The user set run_size=${setting}; the run stays ${setting}.`);
+    return;
+  }
+  await project.write(C.CREW_PATHS.manifest, renderOrThrow(() => C.renderManifest({ ...manifest, size })));
+  io.log(`Size: ${size}.`);
+}
+
 const SCAFFOLD_SKIP = new Set(['node_modules', '.output', 'dist', 'test-results', 'playwright-report', '.tanstack', '.DS_Store']);
 
 function templateFiles(dir, base = dir) {
@@ -208,16 +233,24 @@ export function next(project, args, io) {
 export function budgetFigures(project) {
   const cfg = project.config();
   const entries = project.costs();
-  const authoritative = entries.some((e) => C.AUTHORITATIVE_SOURCES.includes(e.source));
+  const reported = entries.filter((e) => C.AUTHORITATIVE_SOURCES.includes(e.source));
+  const authoritative = reported.length > 0;
   const spent = C.projectSpentUsd(entries);
-  const estimateUsd = entries.filter((e) => e.source === 'estimate').reduce((s, e) => s + (e.turn_cost_usd ?? 0), 0);
-  const basis = authoritative ? spent : estimateUsd;
+  const estimates = entries.filter((e) => e.source === 'estimate');
+  const estimateUsd = estimates.reduce((s, e) => s + (e.turn_cost_usd ?? 0), 0);
+  // A host reports its total only when a call ends. Work done since — the call still running,
+  // the one that writes the report — is not in it yet, so the estimates recorded after the last
+  // report are added: without them a report written in the final call understates the spend.
+  const lastReport = reported.reduce((latest, e) => (String(e.ts) > latest ? String(e.ts) : latest), '');
+  const sinceUsd = authoritative ? estimates.filter((e) => String(e.ts) > lastReport).reduce((s, e) => s + (e.turn_cost_usd ?? 0), 0) : 0;
+  const basis = authoritative ? spent + sinceUsd : estimateUsd;
   return {
     cap_usd: cfg.budgetCapUsd,
     spent_usd: round(spent),
     estimated_usd: round(estimateUsd),
+    estimated_since_report_usd: round(sinceUsd),
     estimated_tokens: C.estimatedTokens(entries),
-    basis: authoritative ? 'reported' : 'estimate',
+    basis: !authoritative ? 'estimate' : sinceUsd > 0 ? 'reported+estimate' : 'reported',
     used_usd: round(basis),
     share: cfg.budgetCapUsd > 0 ? round(basis / cfg.budgetCapUsd) : 0,
   };
@@ -226,6 +259,12 @@ export function budgetFigures(project) {
 function round(n) {
   return Math.round(n * 100) / 100;
 }
+
+const BASIS_TEXT = {
+  reported: () => 'reported by the host',
+  estimate: () => 'plugin estimate at API list prices',
+  'reported+estimate': (b) => `$${b.spent_usd} reported by the host, plus an estimated $${b.estimated_since_report_usd} for the agents that ran since — the session still running is not fully counted`,
+};
 
 export function budget(project, args, io) {
   const json = args.bool('json');
@@ -238,7 +277,7 @@ export function budget(project, args, io) {
   io.log(
     [
       `Budget cap: $${b.cap_usd}${b.cap_usd === 0 ? ' (no cap)' : ''}`,
-      `Used: $${b.used_usd} (${b.basis === 'reported' ? 'reported by the host' : 'plugin estimate at API list prices'})${b.cap_usd > 0 ? `, ${Math.round(b.share * 100)}% of the cap` : ''}`,
+      `Used: $${b.used_usd} (${BASIS_TEXT[b.basis](b)})${b.cap_usd > 0 ? `, ${Math.round(b.share * 100)}% of the cap` : ''}`,
       `Estimated tokens: ${b.estimated_tokens}`,
     ].join('\n'),
   );
@@ -329,6 +368,7 @@ export function summaryData(project) {
     summary: status.summary ?? null,
     stop_reason: status.stop_reason ?? null,
     stack_profile: manifest?.stack_profile ?? null,
+    size: project.size(),
     tasks: { total: tasks.length, ...counts },
     open_escalations: escalations.map((e) => ({ id: e.id, status: e.data.status, kind: e.data.kind, question: e.data.question })),
     access_needed: checklist.map((i) => (i.note ? `${i.text} — ${i.note}` : i.text)),
@@ -361,7 +401,8 @@ export function summary(project, args, io) {
     `Decisions: ${s.decisions}`,
     `Escalations waiting: ${s.open_escalations.length ? s.open_escalations.map((e) => `${e.id} [${e.status}] ${e.question}`).join('; ') : 'none'}`,
     `Access still needed: ${s.access_needed.length ? s.access_needed.join('; ') : 'nothing'}`,
-    `Spend: $${s.budget.used_usd} (${s.budget.basis === 'reported' ? 'reported' : 'estimate'})${s.budget.cap_usd > 0 ? ` of $${s.budget.cap_usd} cap` : ''}, ~${s.budget.estimated_tokens} tokens estimated`,
+    `Size: ${s.size}`,
+    `Spend: $${s.budget.used_usd} (${s.budget.basis === 'reported' ? 'reported' : s.budget.basis === 'estimate' ? 'estimate' : 'reported, plus an estimate for the agents since'})${s.budget.cap_usd > 0 ? ` of $${s.budget.cap_usd} cap` : ''}, ~${s.budget.estimated_tokens} tokens estimated`,
   ];
   io.log(lines.join('\n'));
 }

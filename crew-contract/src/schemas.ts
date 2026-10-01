@@ -184,6 +184,8 @@ export const CrewManifestSchema = z.looseObject({
     .string()
     .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, 'expected a language tag like ru or en-GB')
     .optional(),
+  /** How much process this project gets: a prototype skips the designer and the security reviews and has few tasks. */
+  size: z.enum(['prototype', 'standard']).optional(),
 });
 export type CrewManifest = z.infer<typeof CrewManifestSchema>;
 

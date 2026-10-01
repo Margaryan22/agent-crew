@@ -1,7 +1,7 @@
 {
   "name": "agent-crew",
   "displayName": "Agent Crew",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A crew of AI agents (PM, critic, architect, QA, frontend, backend, DB, security) that turns an idea for a small-business tool into a working, tested project, on the stack that fits it. All state lives in .crew/ in the project.",
   "author": {
     "name": "Margaryan22",
@@ -90,6 +90,17 @@
         "worktrees"
       ],
       "default": "same-folder"
+    },
+    "run_size": {
+      "type": "string",
+      "title": "Run size",
+      "description": "auto: the crew sizes the run from the brief. prototype: a small idea done fast — a few larger tasks, no designer, QA review only, no separate security reviews. standard: the full process whatever the size.",
+      "options": [
+        "auto",
+        "prototype",
+        "standard"
+      ],
+      "default": "auto"
     }
   }
 }

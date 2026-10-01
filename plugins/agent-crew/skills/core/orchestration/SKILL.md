@@ -19,6 +19,7 @@ Work on T-004. Task: .crew/tasks/T-004.md. Brief: .crew/brief.md (AC-03, AC-04).
 ```
 
 - Always put the task id (`T-NNN`) in the first line — cost tracking reads it from there.
+- Keep prompts short. Every crew agent already gets, from the plugin, a digest of the stack rules (commands, its folders, conventions) and the gist of the brief; do not paste or summarise them again. Name the task, the acceptance criteria and the files.
 - **Models.** The crew config line gives `model_tier`. Pass `model` in the Agent call as this table says; an empty cell means no `model` (the agent's own default). A task whose `model` field is set (ladder rung "stronger model") gets that model whatever the tier.
 
   | `model_tier` | architect, critic, security | pm, designer, qa, frontend, backend, db | keeper |
@@ -56,6 +57,25 @@ Set the phase with `crew status set phase=<phase> --summary "<one line>"` as you
 4. `approve` → edit `.crew/brief.md` frontmatter: `status: approved`, `approved_at: <now>` — take the time from `date -u +%Y-%m-%dT%H:%M:%SZ`, never guess it.
 5. `deadlock`, or still `revise` after round 3 → stuck `pm_critic_deadlock` (stuck-detection skill); in `autonomy=full` continue with the recommended option at once and list the critic's open points under Risks.
 
+### 2b. Size the run
+
+The crew config line gives `run_size`. With `prototype` or `standard` the user decided: `crew size set <that>` and go on. With `auto`, size it from the approved brief and record it — `crew size set prototype` or `crew size set standard`:
+
+- **prototype** — at most about 12 acceptance criteria, at most two kinds of signed-in user, no payments, no integrations with other systems, no personal data beyond names and contacts.
+- **standard** — everything else, and anything the brief calls sensitive.
+
+A **prototype** run is the same pipeline with less ceremony; the rest of this skill applies except:
+
+| Step | Prototype |
+|---|---|
+| Architecture (4) | one architect call: the stack (when it must be set up) and a short `docs/architecture.md` together; no security review of the architecture |
+| Design (4b) | no designer: frontend follows the "Building a screen" rules of the ui-design skill with a plain, consistent style |
+| Decomposition (6) | **two to four tasks**, cut by what a user can do, each taking a slice through data, server and screen where one owner can hold it — not one task per file or layer |
+| Task loop (7) | QA reviews each task; there is no security stage (the CLI skips it); no keeper call per task |
+| Final (8) | QA's final verification, with the basic security checks of the code-review skill; no separate security review and no visual review |
+
+Say in the report that the run was a prototype and what a standard run would add.
+
 ### 3. Notify
 Show the human a short summary of the brief: goal, roles, 3–5 key scenarios, out of scope, what is needed from them (access checklist). Then:
 - `autonomy=full` — continue without waiting (the human can interrupt).
@@ -88,7 +108,7 @@ Repeat until `crew next` says all tasks are done or only blocked tasks remain:
    - **Waiting for review** → delegate to **qa** ("Review T-NNN at stage qa") or **security** ("Review T-NNN at stage security"). Which reviews a task gets depends on `review_depth` in the crew config line, and the `crew` CLI applies it by itself: `every-task` — QA, then security; `qa-only` — QA, then done; `final-only` — done on submit. Review what `crew next` lists, nothing more.
 3. When an agent returns without having submitted, passed, rejected or failed its task, record it yourself: `crew task fail T-NNN --error "<what the agent reported>"`.
 4. After a `crew task fail` / `reject`, read the **Next:** line of its output and follow it exactly (retry, retry on a stronger model, replan with the architect, or escalate).
-5. When a task reaches `done`: commit `.crew/` (`crew: T-NNN done`) and delegate to **keeper** in the background (`run_in_background: true`): "Update status after T-NNN."
+5. When a task reaches `done`: commit `.crew/` (`crew: T-NNN done`) and — in a standard run — delegate to **keeper** in the background (`run_in_background: true`): "Update status after T-NNN."
 
 If an escalation blocks tasks, keep running every task that does not depend on them.
 
@@ -98,7 +118,7 @@ If an escalation blocks tasks, keep running every task that does not depend on t
 2. Write `.crew/report.md` in the project language:
    - what was built, AC by AC (met / not met / partially, with the test that shows it);
    - test results (from `final-qa.md`);
-   - spend (`crew budget`) — on a subscription say these are estimates at API list prices;
+   - spend — the line `crew budget` prints, as it is (it says what is reported and what is estimated, and that the session writing this report is not fully counted); on a subscription add that these are estimates at API list prices;
    - decisions (ADR list), open escalations, open access-checklist items, known issues and follow-ups;
    - how to run the app (from the stack rules / README).
 3. **Lessons.** Look back at what cost this run time: retries, rejected reviews, stuck tasks, escalations, a hook that blocked the same thing twice. For each real cause — at most five — record what to do differently: `crew lesson add --for <role or all> --text "<one sentence, general enough for another project: no names, no data from this one>"`. Later runs get them at the start. Nothing went wrong → no lessons.

@@ -364,6 +364,13 @@ describe('status, next, check, budget, summary', () => {
     const b = await json(root, ['budget']);
     assert.deepEqual({ basis: b.basis, used: b.used_usd, est: b.estimated_usd, tokens: b.estimated_tokens }, { basis: 'reported', used: 4, est: 21, tokens: 1100 });
     assert.match(await ok(root, ['budget']), /Used: \$4 \(reported by the host\), 20% of the cap/);
+    // Agents that ran after the host's last report are added: a report written in the final call must not understate the spend.
+    const later = JSON.stringify({ ts: '2026-09-29T12:30:00Z', source: 'estimate', task: 'T-001', tokens: { input: 10, output: 10 }, turn_cost_usd: 1.25 });
+    writeFileSync(path.join(root, '.crew/costs.log'), `${est(21, 'T-001')}\n${JSON.stringify({ ts: '2026-09-29T12:00:00Z', source: 'headless', session_id: 's', session_total_usd: 4 })}\n${later}\n`);
+    const since = await json(root, ['budget']);
+    assert.deepEqual({ basis: since.basis, used: since.used_usd, reported: since.spent_usd, since: since.estimated_since_report_usd }, { basis: 'reported+estimate', used: 5.25, reported: 4, since: 1.25 });
+    assert.match(await ok(root, ['budget']), /Used: \$5\.25 \(\$4 reported by the host, plus an estimated \$1\.25 for the agents that ran since/);
+    writeFileSync(path.join(root, '.crew/costs.log'), `${est(21, 'T-001')}\n${JSON.stringify({ ts: '2026-09-29T12:00:00Z', source: 'headless', session_id: 's', session_total_usd: 4 })}\n`);
     assert.match(await ok(root, ['budget'], { env: { CREW_BUDGET_CAP_USD: '0' } }), /no cap/);
 
     mkdirSync(path.join(root, '.crew/logs'), { recursive: true });
@@ -390,7 +397,7 @@ describe('status, next, check, budget, summary', () => {
     assert.deepEqual(s.tasks, { total: 1, todo: 1 });
     assert.deepEqual(s.open_escalations, [{ id: 'E-001', status: 'open', kind: 'question', question: 'Colours?' }]);
     assert.deepEqual(s.access_needed, ['SMTP password — booking emails']);
-    assert.match(await ok(root, ['summary']), /Phase: interview — Project started\.\nTasks: 1 \(1 todo\)\nDecisions: 0\nEscalations waiting: E-001 \[open\] Colours\?\nAccess still needed: SMTP password — booking emails\nSpend: \$0 \(estimate\), ~0 tokens estimated/);
+    assert.match(await ok(root, ['summary']), /Phase: interview — Project started\.\nTasks: 1 \(1 todo\)\nDecisions: 0\nEscalations waiting: E-001 \[open\] Colours\?\nAccess still needed: SMTP password — booking emails\nSize: standard\nSpend: \$0 \(estimate\), ~0 tokens estimated/);
   });
 });
 
@@ -479,6 +486,29 @@ describe('git worktrees', () => {
     assert.match(read(root, '.crew/tasks/T-001.md'), /status: in_progress/);
     assert.match(read(tree, '.crew/tasks/T-001.md'), /status: todo/);
     assert.match(await ok(path.join(tree, '.crew'), ['task', 'list']), /T-001\s+in_progress/);
+  });
+});
+
+describe('run size', () => {
+  it('records the size the orchestrator chose and skips the security stage in a prototype', async () => {
+    const root = await started();
+    assert.match(await ok(root, ['size', 'show']), /Size: standard \(not sized yet/);
+    assert.match(await ok(root, ['size', 'set', 'prototype']), /Size: prototype\./);
+    assert.equal(JSON.parse(read(root, '.crew/crew.json')).size, 'prototype');
+    assert.deepEqual(await json(root, ['size', 'show']), { size: 'prototype', setting: 'auto', recorded: 'prototype' });
+    await ok(root, ['task', 'new', '--title', 'Form', '--owner', 'frontend']);
+    await ok(root, ['task', 'start', 'T-001']);
+    await ok(root, ['task', 'submit', 'T-001']);
+    assert.match(await ok(root, ['task', 'pass', 'T-001', '--stage', 'qa']), /passed QA and is done \(prototype: no separate security review\)/);
+    await fails(root, ['size', 'set', 'huge'], 1, /crew size set prototype\|standard/);
+  });
+
+  it('keeps the size the user set', async () => {
+    const root = await started();
+    const user = { env: { CLAUDE_PLUGIN_OPTION_RUN_SIZE: 'standard' } };
+    assert.match(await ok(root, ['size', 'set', 'prototype'], user), /The user set run_size=standard; the run stays standard\./);
+    assert.match(await ok(root, ['size', 'show'], user), /Size: standard \(set by the user\)/);
+    assert.equal(JSON.parse(read(root, '.crew/crew.json')).size, undefined);
   });
 });
 

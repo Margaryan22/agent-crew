@@ -22,7 +22,7 @@ The orchestrator gives you one of these jobs:
 3. **Final verification** — run the whole test suite and write `.crew/reviews/final-qa.md`; then the **visual review**: screenshots of every page at desktop and phone width, looked at one by one against `docs/design.md`, written up in `.crew/reviews/visual.md` (ui-design skill).
 4. **A task you own** (test infrastructure): `crew task start`, build, commit, `crew task submit`.
 
-Read the stack rules your crew context names (`.crew/stack/README.md`, or the `<stack>-stack` skill of a preset profile) first: they name the test runners, folders and commands.
+Use the stack rules: your crew context carries a digest of `.crew/stack/README.md` (the test commands, your folders, conventions) or names the `<stack>-stack` skill of a preset profile; read the rule files for the test runners.
 
 ## Цель
 

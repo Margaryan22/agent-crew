@@ -120,7 +120,7 @@ describe('resolveCrewConfig', () => {
   it('uses defaults when nothing is set', () => {
     expect(resolveCrewConfig({})).toEqual({
       config: CONFIG_DEFAULTS,
-      sources: { autonomy: 'default', briefReviewMinutes: 'default', budgetCapUsd: 'default', stackProfile: 'default', modelTier: 'default', reviewDepth: 'default', parallelTasks: 'default', host: 'default' },
+      sources: { autonomy: 'default', briefReviewMinutes: 'default', budgetCapUsd: 'default', stackProfile: 'default', modelTier: 'default', reviewDepth: 'default', parallelTasks: 'default', runSize: 'default', host: 'default' },
       issues: [],
     });
   });
@@ -134,7 +134,7 @@ describe('resolveCrewConfig', () => {
       CREW_STACK_PROFILE: 'nextjs',
       CREW_HOST: 'eval',
     });
-    expect(config).toEqual({ autonomy: 'review', briefReviewMinutes: 3, budgetCapUsd: 7, stackProfile: 'auto', modelTier: 'balanced', reviewDepth: 'every-task', parallelTasks: 'same-folder', host: 'eval' });
+    expect(config).toEqual({ autonomy: 'review', briefReviewMinutes: 3, budgetCapUsd: 7, stackProfile: 'auto', modelTier: 'balanced', reviewDepth: 'every-task', parallelTasks: 'same-folder', runSize: 'auto', host: 'eval' });
     expect(resolveCrewConfig({ CLAUDE_PLUGIN_OPTION_MODEL_TIER: 'economy', CLAUDE_PLUGIN_OPTION_REVIEW_DEPTH: 'qa-only' }).config).toMatchObject({ modelTier: 'economy', reviewDepth: 'qa-only' });
     expect(resolveCrewConfig({ CREW_MODEL_TIER: 'turbo' }).issues[0]).toContain('model_tier');
     expect(sources).toMatchObject({ autonomy: 'env', budgetCapUsd: 'userConfig', briefReviewMinutes: 'eval', stackProfile: 'default', host: 'env' });

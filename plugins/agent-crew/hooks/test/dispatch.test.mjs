@@ -249,12 +249,59 @@ describe('a stack without a preset (stack_profile=auto)', () => {
 
   it('points agents at the project stack rules once they exist', () => {
     const root = tempProject();
-    const ctx = () => run('SubagentStart', { session_id: 's', agent_type: 'agent-crew:backend', agent_id: 'a1' }, { root, env: auto }).output.hookSpecificOutput.additionalContext;
+    const ctx = (agent = 'backend') => run('SubagentStart', { session_id: 's', agent_type: `agent-crew:${agent}`, agent_id: 'a1' }, { root, env: auto }).output.hookSpecificOutput.additionalContext;
     assert.match(ctx(), /stack is not set up yet: the architect chooses or detects it and writes its rules to \.crew\/stack\//);
     mkdirSync(path.join(root, '.crew', 'stack'), { recursive: true });
     writeFileSync(path.join(root, '.crew', 'stack', 'README.md'), '# Stack\n');
     assert.match(ctx(), /read \.crew\/stack\/README\.md/);
     assert.doesNotMatch(ctx(), /tanstack/);
+  });
+
+  it('gives each agent a digest of the stack rules and the brief instead of the files', () => {
+    const root = tempProject();
+    mkdirSync(path.join(root, '.crew', 'stack'), { recursive: true });
+    writeFileSync(
+      path.join(root, '.crew', 'stack', 'README.md'),
+      [
+        '# Stack',
+        '## Technologies',
+        '| Technology | Version | Used for | Rules | Docs |',
+        '|---|---|---|---|---|',
+        '| Next.js | 16.3 | pages | [next.md](next.md) | https://nextjs.org/docs |',
+        '## Commands',
+        '| Purpose | Command |',
+        '|---|---|',
+        '| Unit tests | `npm test` |',
+        '## Layout and owners',
+        '| Path | Owner | Notes |',
+        '|---|---|---|',
+        '| `src/app/**` | frontend | routes |',
+        '| `src/server/**` | backend | server actions |',
+        '## Conventions',
+        '1. Validate every input on the server.',
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(path.join(root, '.crew', 'brief.md'), '---\nstatus: approved\n---\n# Brief\n\n## Goal\nVisitors leave feedback; the owner reads it.\n\n## Users and roles\n- **Visitor** — no account.\n- **Owner** — signs in.\n\n## Acceptance criteria\n- **AC-01** a very long criterion\n');
+    const ctx = (agent) => run('SubagentStart', { session_id: 's', agent_type: `agent-crew:${agent}`, agent_id: 'a1' }, { root, env: auto }).output.hookSpecificOutput.additionalContext;
+    const backend = ctx('backend');
+    assert.match(backend, /do not read that file unless something is missing/);
+    for (const text of ['Technologies: Next.js 16.3 → next.md', 'Commands: Unit tests: `npm test`', 'Your folders: `src/server/**` (server actions)', '1. Validate every input on the server.', 'Goal: Visitors leave feedback; the owner reads it.', 'Users and roles: - **Visitor** — no account. - **Owner** — signs in.']) assert.ok(backend.includes(text), text);
+    // Only its own folders, and none of the acceptance criteria.
+    assert.ok(!backend.includes('src/app/**') && !backend.includes('AC-01'));
+    assert.ok(ctx('frontend').includes('Your folders: `src/app/**` (routes)'));
+    // The PM and the critic work on the brief itself and get no gist of it.
+    assert.ok(!ctx('critic').includes('The brief in short'));
+  });
+
+  it('tells the orchestrator the run size the user set or the project recorded', () => {
+    const root = tempProject();
+    const start = (env) => run('UserPromptExpansion', { session_id: 'z', command_name: 'agent-crew:continue' }, { root, env }).output.hookSpecificOutput.additionalContext;
+    assert.match(start({ CREW_STACK_PROFILE: 'auto' }), /run_size=auto,/);
+    mkdirSync(path.join(root, '.crew'), { recursive: true });
+    writeFileSync(path.join(root, '.crew', 'crew.json'), JSON.stringify({ contract_version: 1, plugin: { name: 'agent-crew', version: '0.5.0' }, stack_profile: 'auto', created_at: '2026-10-02T10:00:00Z', size: 'prototype' }));
+    assert.match(start({ CREW_STACK_PROFILE: 'auto' }), /run_size=auto \(this project: prototype\),/);
+    assert.match(start({ CLAUDE_PLUGIN_OPTION_RUN_SIZE: 'standard' }), /run_size=standard/);
   });
 });
 
@@ -277,7 +324,7 @@ describe('crew sessions', () => {
         started_at: 'x',
         assistant: 'claude-code',
         transcript_path: '/tmp/t.jsonl',
-        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', modelTier: 'balanced', reviewDepth: 'every-task', parallelTasks: 'same-folder', host: 'interactive' },
+        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', modelTier: 'balanced', reviewDepth: 'every-task', parallelTasks: 'same-folder', runSize: 'auto', host: 'interactive' },
       },
     );
     assert.equal(readFileSync(path.join(root, '.crew', '.gitignore'), 'utf8'), 'logs/\nsessions/\n');

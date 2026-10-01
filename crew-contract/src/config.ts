@@ -15,6 +15,12 @@ export const REVIEW_DEPTHS = ['every-task', 'qa-only', 'final-only'] as const;
 /** Where tasks that run at the same time work: in the one project folder, or each in its own git worktree. */
 export type ParallelTasks = 'same-folder' | 'worktrees';
 export const PARALLEL_TASKS = ['same-folder', 'worktrees'] as const;
+/** How much process a run gets: `auto` lets the orchestrator size it from the brief. */
+export type RunSize = 'auto' | 'prototype' | 'standard';
+export const RUN_SIZES = ['auto', 'prototype', 'standard'] as const;
+/** What a project is actually run as, once sized (recorded in crew.json). */
+export const PROJECT_SIZES = ['prototype', 'standard'] as const;
+export type ProjectSize = (typeof PROJECT_SIZES)[number];
 
 export interface CrewConfig {
   autonomy: Autonomy;
@@ -24,6 +30,7 @@ export interface CrewConfig {
   modelTier: ModelTier;
   reviewDepth: ReviewDepth;
   parallelTasks: ParallelTasks;
+  runSize: RunSize;
   host: CrewHost;
 }
 
@@ -39,6 +46,7 @@ export const CONFIG_DEFAULTS: CrewConfig = {
   modelTier: 'balanced',
   reviewDepth: 'every-task',
   parallelTasks: 'same-folder',
+  runSize: 'auto',
   host: 'interactive',
 };
 
@@ -97,6 +105,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
   const modelTier = pick<ModelTier>('MODEL_TIER', oneOf(MODEL_TIERS), CONFIG_DEFAULTS.modelTier);
   const reviewDepth = pick<ReviewDepth>('REVIEW_DEPTH', oneOf(REVIEW_DEPTHS), CONFIG_DEFAULTS.reviewDepth);
   const parallelTasks = pick<ParallelTasks>('PARALLEL_TASKS', oneOf(PARALLEL_TASKS), CONFIG_DEFAULTS.parallelTasks);
+  const runSize = pick<RunSize>('RUN_SIZE', oneOf(RUN_SIZES), CONFIG_DEFAULTS.runSize);
 
   let host: Resolved<CrewHost> = { value: CONFIG_DEFAULTS.host, source: 'default' };
   const hostRaw = env.CREW_HOST?.trim();
@@ -113,6 +122,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       modelTier: modelTier.value,
       reviewDepth: reviewDepth.value,
       parallelTasks: parallelTasks.value,
+      runSize: runSize.value,
       host: host.value,
     },
     sources: {
@@ -123,6 +133,7 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       modelTier: modelTier.source,
       reviewDepth: reviewDepth.source,
       parallelTasks: parallelTasks.source,
+      runSize: runSize.source,
       host: host.source,
     },
     issues,

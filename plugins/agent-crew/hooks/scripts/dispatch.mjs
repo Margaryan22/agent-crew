@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { briefDigest, stackDigest } from '../../lib/digest.mjs';
 import { lessonsFor, LESSONS_FILE } from '../../lib/lessons.mjs';
 import { linkedWorktree, mainCheckout } from '../../lib/worktree.mjs';
 import { projectPolicyProblems as projectPolicyProblemsOf } from './lib/policy.mjs';
@@ -73,12 +74,12 @@ function lessonLines(role, root, dataDir, max) {
   return [`Lessons from earlier crew runs (advice from past mistakes; the brief, the stack rules and the policy come first):`, ...lessons.map((l) => `  · ${role === 'orchestrator' && l.role !== 'all' ? `${l.role}: ` : ''}${l.text}`)];
 }
 
-/** @param {{ stack: string, payPerUse?: string, dataDir?: string }} session */
+/** @param {{ stack: string, payPerUse?: string, dataDir?: string, size?: string }} session */
 function contextBlock(contract, config, root, session) {
   const lines = [
     'Agent Crew session. You are the orchestrator: follow the agent-crew:orchestration skill (and agent-crew:stuck-detection when something is stuck); delegate the work to the agent-crew:* agents.',
     'Project state lives in .crew/ (tasks, escalations, decisions, status); change it with the `crew` CLI (`crew help`), which writes files that match the contract.',
-    `Crew config: autonomy=${config.autonomy}, stack_profile=${session.stack}, budget_cap_usd=${config.budgetCapUsd}${config.budgetCapUsd === 0 ? ' (no spending cap)' : ''}, model_tier=${config.modelTier}, review_depth=${config.reviewDepth}, parallel_tasks=${config.parallelTasks}, brief_review_minutes=${config.briefReviewMinutes}, host=${config.host}.`,
+    `Crew config: autonomy=${config.autonomy}, stack_profile=${session.stack}, budget_cap_usd=${config.budgetCapUsd}${config.budgetCapUsd === 0 ? ' (no spending cap)' : ''}, model_tier=${config.modelTier}, review_depth=${config.reviewDepth}, parallel_tasks=${config.parallelTasks}, run_size=${config.runSize}${session.size ? ` (this project: ${session.size})` : ''}, brief_review_minutes=${config.briefReviewMinutes}, host=${config.host}.`,
   ];
   // A cap matters only where spend is real money; on a subscription nobody is asked about it.
   if (config.budgetCapUsd === 0 && session.payPerUse) {
@@ -120,8 +121,23 @@ function subagentContext(config, root, agentType) {
       `- Stack profile: ${stack}. Before writing or reviewing code, load the skill \`${plugin}:${stack}-stack\` with the Skill tool; it lists the stack's other skills. If the Skill tool is not available to you, read ${presetSkill} instead; the other skills are in the folders next to it.`,
     );
   }
-  if (existsSync(path.join(root, '.crew', 'stack', 'README.md'))) {
-    stackLines.push("- Stack rules of this project: before writing or reviewing code read .crew/stack/README.md (technologies and versions, commands, who owns which folders, conventions), then the rule files it lists for the technologies you touch. They are binding, like the brief.");
+  const stackIndex = path.join(root, '.crew', 'stack', 'README.md');
+  if (existsSync(stackIndex)) {
+    // The digest stands in for the index: ten agents reading the same file in full is the
+    // largest avoidable cost of a run.
+    const digest = stackDigest(readFileSync(stackIndex, 'utf8'), role);
+    stackLines.push(
+      digest
+        ? `- Stack rules of this project (binding, like the brief). What you need from .crew/stack/README.md is below — do not read that file unless something is missing. Before writing or reviewing code, read the rule files (.crew/stack/<name>.md) of the technologies you touch.\n${digest.replace(/^/gm, '  ')}`
+        : '- Stack rules of this project: before writing or reviewing code read .crew/stack/README.md (technologies and versions, commands, who owns which folders, conventions), then the rule files it lists for the technologies you touch. They are binding, like the brief.',
+    );
+  }
+  // The PM and the critic work on the brief itself; everyone else gets its gist and reads only
+  // the acceptance criteria their job names.
+  const briefFile = path.join(root, '.crew', 'brief.md');
+  if (!['pm', 'critic'].includes(role) && existsSync(briefFile)) {
+    const gist = briefDigest(readFileSync(briefFile, 'utf8'));
+    if (gist) stackLines.push(`- The brief in short (full text: .crew/brief.md — read the acceptance criteria your job names, not the whole file):\n${gist.replace(/^/gm, '  ')}`);
   }
   if (!stackLines.length) {
     stackLines.push(`- The project's stack is not set up yet: the architect chooses or detects it and writes its rules to .crew/stack/ (skill \`${plugin}:stack-rules\`). Until then, do not assume a framework.`);
@@ -156,7 +172,7 @@ async function updateTaskEstimate(contract, root, taskId) {
 async function sessionFacts(config, root, env, model) {
   const { loadPolicy, stackOf, payPerUseReason } = await import('./lib/policy.mjs');
   const stack = stackOf(root, config);
-  return { stack, dataDir: env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA, payPerUse: config.host === 'interactive' ? payPerUseReason(env, model, loadPolicy(pluginRoot, stack)) : undefined };
+  return { stack, size: readManifest(root)?.size, dataDir: env.CLAUDE_PLUGIN_DATA || env.PLUGIN_DATA, payPerUse: config.host === 'interactive' ? payPerUseReason(env, model, loadPolicy(pluginRoot, stack)) : undefined };
 }
 
 /** Tells the architect at once which entries of a just-written .crew/policy.json the hooks will ignore. */

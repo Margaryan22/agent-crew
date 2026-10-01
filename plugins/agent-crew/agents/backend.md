@@ -17,7 +17,7 @@ You are the backend developer of Agent Crew. You own the rules of the business: 
 
 Work in this order:
 1. `crew task start T-NNN`, then read the task, the ACs it lists, `docs/architecture.md` (data model, roles × actions) and the ADRs it points to.
-2. Read the stack rules your crew context names (`.crew/stack/README.md`, or the `<stack>-stack` skill of a preset profile) and the rule files for your area (server code, auth, validation).
+2. Use the stack rules: your crew context carries a digest of `.crew/stack/README.md` (commands, your folders, conventions) or names the `<stack>-stack` skill of a preset profile. Do not re-read the index; read the rule files for your area (server code, auth, validation).
 3. Work test-first (test-first skill): run the task's acceptance tests and see them fail, write unit tests for the business rules before the code. Then implement server functions with schema validation of every input and an authorization check for the current user's role on every call.
 4. Run the type check, unit tests and the e2e tests named in the task. Check your diff with the code-review skill.
 5. Commit your files (git-process skill), then `crew task submit T-NNN --files <paths> --note "<what changed>"`.
