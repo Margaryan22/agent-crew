@@ -3,7 +3,7 @@ name: backend
 description: Backend developer of the crew. Implements server-side tasks from .crew/tasks/ — server functions and API routes, business rules, validation, authentication and authorization — then commits and submits the task for review. Use for tasks owned by backend.
 model: sonnet
 effort: medium
-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch
+tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, Skill
 skills:
   - crew-files
   - git-process

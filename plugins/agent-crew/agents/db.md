@@ -3,7 +3,7 @@ name: db
 description: Database developer of the crew. Implements the schema, migrations and seed data from docs/architecture.md with the stack's ORM, keeping migrations safe for existing data. Use for tasks owned by db.
 model: sonnet
 effort: medium
-tools: Read, Write, Edit, Glob, Grep, Bash
+tools: Read, Write, Edit, Glob, Grep, Bash, Skill
 skills:
   - crew-files
   - git-process

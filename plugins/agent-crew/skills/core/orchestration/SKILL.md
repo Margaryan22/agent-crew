@@ -56,7 +56,7 @@ Show the human a short summary of the brief: goal, roles, 3–5 key scenarios, o
 3. `Verdict: changes required` → **architect**: "Address the must-fix items in .crew/reviews/architecture-security.md." One round; remaining disagreements become an ADR by the architect.
 
 ### 5. Acceptance tests — `phase=acceptance_tests`
-**qa**: "Write e2e acceptance tests for every AC in .crew/brief.md and docs/ui-contract.md, before any feature code." They must compile and fail.
+**qa**: "Write docs/ui-contract.md (the UI names the tests rely on) and e2e acceptance tests for every AC in .crew/brief.md, before any feature code." They must compile and fail.
 
 ### 6. Decomposition — `phase=decomposition`
 Create tasks with `crew task new`, in dependency order:

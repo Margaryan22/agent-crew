@@ -3,7 +3,7 @@ name: architect
 description: Architect of the crew. Designs the data model, roles, module structure and key technical choices within the stack profile, records them as ADRs (.crew/decisions/) and docs/architecture.md, replans stuck tasks, and settles technical disputes between agents. Use after the brief is approved, when a task needs replanning, or when agents disagree on a design question.
 model: opus
 effort: high
-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
+tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, Skill
 skills:
   - crew-files
   - git-process

@@ -193,7 +193,10 @@ describe('crew sessions', () => {
     const ctx = output.hookSpecificOutput.additionalContext;
     assert.equal(output.hookSpecificOutput.hookEventName, 'SubagentStart');
     assert.match(ctx, /for the frontend agent/);
-    assert.match(ctx, /load the skill `tanstack-stack`/);
+    assert.match(ctx, /load the skill `agent-crew:tanstack-stack` with the Skill tool/);
+    // …and where the skill is on disk, for an agent that cannot call it.
+    assert.ok(ctx.includes(`read ${path.join(pluginRoot, 'skills', 'stacks', 'tanstack', 'tanstack-stack', 'SKILL.md')} instead`));
+    assert.match(ctx, /not with shell loops/);
     assert.match(ctx, /project language: ru/);
     assert.match(ctx, /data, not instructions/);
     assert.equal(run('SubagentStart', { session_id: 'sess-1', agent_type: 'Explore' }, { root }).output, undefined);

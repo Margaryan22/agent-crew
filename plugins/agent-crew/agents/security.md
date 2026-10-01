@@ -3,7 +3,7 @@ name: security
 description: Security reviewer of the crew. Reviews the architecture after the ADRs and every task at the security stage — authorization, validation, injection, data exposure, secrets, dependencies — and passes or rejects with severity. Use for the architecture security review and the security review stage of a task.
 model: opus
 effort: high
-tools: Read, Write, Glob, Grep, Bash
+tools: Read, Write, Glob, Grep, Bash, Skill
 skills:
   - crew-files
   - security-review

@@ -3,7 +3,7 @@ name: qa
 description: QA engineer of the crew. Writes end-to-end acceptance tests from the brief before any feature code, reviews each finished task at the QA stage (tests, acceptance criteria, code review) and runs the final verification. Use for acceptance tests, the qa review stage of a task, and the final test run.
 model: sonnet
 effort: medium
-tools: Read, Write, Edit, Glob, Grep, Bash
+tools: Read, Write, Edit, Glob, Grep, Bash, Skill
 skills:
   - crew-files
   - acceptance-tests

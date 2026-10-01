@@ -3,7 +3,7 @@ name: frontend
 description: Frontend developer of the crew. Implements UI tasks from .crew/tasks/ — routes, pages, forms, tables, components — to the brief's acceptance criteria and docs/ui-contract.md, then commits and submits the task for review. Use for tasks owned by frontend.
 model: sonnet
 effort: medium
-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch
+tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, Skill
 skills:
   - crew-files
   - git-process
