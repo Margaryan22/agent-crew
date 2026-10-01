@@ -89,6 +89,6 @@ describe('Agent Crew — companion extension', () => {
 
   it('continues the run in its own Claude Code session', async () => {
     await vscode.commands.executeCommand('crew.continue');
-    assert.deepStrictEqual(api.launches.at(-1), { prompt: 'Continue the crew run.', sessionId: '1b2c3d4e-0000-4000-8000-000000000001' });
+    assert.deepStrictEqual(api.launches.at(-1), { prompt: '/agent-crew:continue', sessionId: '1b2c3d4e-0000-4000-8000-000000000001' });
   });
 });
