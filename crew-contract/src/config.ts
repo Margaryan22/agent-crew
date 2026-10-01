@@ -6,12 +6,20 @@
 
 export type Autonomy = 'full' | 'review';
 export type CrewHost = 'interactive' | 'eval' | 'sdk';
+/** Which models the agents run on: economy keeps the plan's limits, quality spends them on stronger models. */
+export type ModelTier = 'economy' | 'balanced' | 'quality';
+/** How much review each task gets: QA and security, QA only, or only the final review of the whole project. */
+export type ReviewDepth = 'every-task' | 'qa-only' | 'final-only';
+export const MODEL_TIERS = ['economy', 'balanced', 'quality'] as const;
+export const REVIEW_DEPTHS = ['every-task', 'qa-only', 'final-only'] as const;
 
 export interface CrewConfig {
   autonomy: Autonomy;
   briefReviewMinutes: number;
   budgetCapUsd: number;
   stackProfile: string;
+  modelTier: ModelTier;
+  reviewDepth: ReviewDepth;
   host: CrewHost;
 }
 
@@ -24,6 +32,8 @@ export const CONFIG_DEFAULTS: CrewConfig = {
   // subscription the plan's own limits apply, so nothing is capped unless the user asks for it.
   budgetCapUsd: 0,
   stackProfile: 'auto',
+  modelTier: 'balanced',
+  reviewDepth: 'every-task',
   host: 'interactive',
 };
 
@@ -78,6 +88,10 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
   const budgetCapUsd = pick('BUDGET_CAP_USD', number(0, 100_000), CONFIG_DEFAULTS.budgetCapUsd);
   const stackProfile = pick('STACK_PROFILE', (r) => ((STACK_PROFILES as readonly string[]).includes(r) ? r : undefined), CONFIG_DEFAULTS.stackProfile);
 
+  const oneOf = <T extends string>(values: readonly T[]) => (r: string) => ((values as readonly string[]).includes(r) ? (r as T) : undefined);
+  const modelTier = pick<ModelTier>('MODEL_TIER', oneOf(MODEL_TIERS), CONFIG_DEFAULTS.modelTier);
+  const reviewDepth = pick<ReviewDepth>('REVIEW_DEPTH', oneOf(REVIEW_DEPTHS), CONFIG_DEFAULTS.reviewDepth);
+
   let host: Resolved<CrewHost> = { value: CONFIG_DEFAULTS.host, source: 'default' };
   const hostRaw = env.CREW_HOST?.trim();
   if (hostRaw === 'eval' || hostRaw === 'sdk' || hostRaw === 'interactive') host = { value: hostRaw, source: 'env' };
@@ -90,6 +104,8 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       briefReviewMinutes: briefReviewMinutes.value,
       budgetCapUsd: budgetCapUsd.value,
       stackProfile: stackProfile.value,
+      modelTier: modelTier.value,
+      reviewDepth: reviewDepth.value,
       host: host.value,
     },
     sources: {
@@ -97,6 +113,8 @@ export function resolveCrewConfig(env: Env): { config: CrewConfig; sources: Reco
       briefReviewMinutes: briefReviewMinutes.source,
       budgetCapUsd: budgetCapUsd.source,
       stackProfile: stackProfile.source,
+      modelTier: modelTier.source,
+      reviewDepth: reviewDepth.source,
       host: host.source,
     },
     issues,

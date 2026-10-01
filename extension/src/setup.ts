@@ -1,5 +1,6 @@
 // "Check Setup": the tools a crew-built project needs on this machine besides Claude Code —
-// Node.js 22+, git, and Docker for the local database.
+// Node.js 22+ and git. Docker is reported but never required: with the default `auto` stack the
+// crew uses an embedded database; only a project with a database server needs it.
 
 export interface ToolCheck {
   name: string;
@@ -37,10 +38,11 @@ export async function checkTools(exec: Exec): Promise<ToolCheck[]> {
         },
     git.ok ? { name: 'git', ok: true, detail: git.stdout.trim() } : { name: 'git', ok: false, detail: 'not found', fix: 'Install git (https://git-scm.com).' },
   ];
+  const onlyFor = 'optional: only the tanstack preset, or a project that uses a database server, needs it';
   if (!docker.ok) {
-    checks.push({ name: 'Docker', ok: false, detail: 'not found', fix: 'Install Docker Desktop or OrbStack — the project runs PostgreSQL in Docker.' });
+    checks.push({ name: 'Docker', ok: true, detail: `not installed (${onlyFor})` });
   } else if (!daemon.ok) {
-    checks.push({ name: 'Docker', ok: false, detail: `${docker.stdout.trim()}, but the engine is not running`, fix: 'Start Docker Desktop (or OrbStack).' });
+    checks.push({ name: 'Docker', ok: true, detail: `${docker.stdout.trim()}, not running (${onlyFor})` });
   } else {
     checks.push({ name: 'Docker', ok: true, detail: `engine ${daemon.stdout.trim()}` });
   }

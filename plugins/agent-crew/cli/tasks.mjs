@@ -174,7 +174,14 @@ export async function taskSubmit(project, args, io) {
   requireStatus(task, ['in_progress', 'todo'], 'submit');
   const allFiles = [...new Set([...(task.data.files ?? []), ...files])];
   const body = appendToSection(task.body, 'Log', logLine(project, `submitted for review by ${task.data.owner}${note ? `: ${oneLine(note)}` : ''}`));
-  await project.saveTask({ ...task, body }, { status: 'review', review_stage: 'qa', ...(allFiles.length ? { files: allFiles } : {}) });
+  const filesPatch = allFiles.length ? { files: allFiles } : {};
+  if (project.config().reviewDepth === 'final-only') {
+    // The user chose one review of the whole project at the end instead of one per task.
+    await project.saveTask({ ...task, body: appendToSection(body, 'Log', logLine(project, 'done without a task review (review depth: final-only)')) }, { status: 'done', review_stage: undefined, ...filesPatch });
+    io.log(`${task.id} is done (review depth final-only: the final phase reviews the whole project).`);
+    return;
+  }
+  await project.saveTask({ ...task, body }, { status: 'review', review_stage: 'qa', ...filesPatch });
   io.log(`${task.id} is waiting for QA review.`);
 }
 
@@ -192,7 +199,10 @@ export async function taskPass(project, args, io) {
   requireStatus(task, ['review'], 'pass');
   if (task.data.review_stage !== stage) throw new StateError(`${task.id} is in ${task.data.review_stage ?? 'no'} review, not ${stage}`);
   const body = appendToSection(task.body, 'Log', logLine(project, `${stage} review passed${note ? `: ${oneLine(note)}` : ''}`));
-  if (stage === 'qa') {
+  if (stage === 'qa' && project.config().reviewDepth !== 'every-task') {
+    await project.saveTask({ ...task, body }, { status: 'done', review_stage: undefined });
+    io.log(`${task.id} passed QA and is done (review depth ${project.config().reviewDepth}: security reviews the whole project in the final phase).`);
+  } else if (stage === 'qa') {
     await project.saveTask({ ...task, body }, { review_stage: 'security' });
     io.log(`${task.id} passed QA and is waiting for security review.`);
   } else {

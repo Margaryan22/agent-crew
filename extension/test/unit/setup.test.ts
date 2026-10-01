@@ -35,9 +35,14 @@ describe('setup check', () => {
         'docker --version': { ok: true, stdout: 'Docker version 29.4.0' },
       }),
     );
-    expect(checks.map((c) => `${c.name}:${c.ok}:${c.detail}`)).toEqual(['Node.js:false:v20.11.0 is too old', 'git:false:not found', 'Docker:false:Docker version 29.4.0, but the engine is not running']);
-    expect(checks.every((c) => c.fix)).toBe(true);
+    expect(checks.map((c) => `${c.name}:${c.ok}:${c.detail}`)).toEqual([
+      'Node.js:false:v20.11.0 is too old',
+      'git:false:not found',
+      // Docker is never required: the default stack uses an embedded database.
+      'Docker:true:Docker version 29.4.0, not running (optional: only the tanstack preset, or a project that uses a database server, needs it)',
+    ]);
+    expect(checks.filter((c) => !c.ok).every((c) => c.fix)).toBe(true);
     const none = await checkTools(fakeExec({}));
-    expect(none.map((c) => c.detail)).toEqual(['not found', 'not found', 'not found']);
+    expect(none.map((c) => `${c.ok}:${c.detail}`)).toEqual(['false:not found', 'false:not found', 'true:not installed (optional: only the tanstack preset, or a project that uses a database server, needs it)']);
   });
 });

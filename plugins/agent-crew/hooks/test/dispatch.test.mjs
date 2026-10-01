@@ -96,6 +96,28 @@ describe('a plugin under a symlinked folder', () => {
   });
 });
 
+describe('crew commands', () => {
+  it('continue and fix start a crew session like new-project and feature; status does not', () => {
+    for (const command of ['continue', 'fix', 'feature']) {
+      const root = tempProject();
+      const out = run('UserPromptExpansion', { session_id: `s-${command}`, command_name: `agent-crew:${command}` }, { root }).output;
+      assert.match(out.hookSpecificOutput.additionalContext, /Agent Crew session/, command);
+      assert.ok(existsSync(path.join(root, '.crew', 'sessions', `s-${command}.json`)), command);
+      // …so the policy is on in that session, also in a brand-new chat.
+      assert.equal(run('PreToolUse', { session_id: `s-${command}`, tool_name: 'Bash', tool_input: { command: 'rm -rf /' } }, { root }).output.hookSpecificOutput.permissionDecision, 'deny');
+    }
+    const root = tempProject();
+    assert.equal(run('UserPromptExpansion', { session_id: 's-status', command_name: 'agent-crew:status' }, { root }).output, undefined);
+    assert.equal(existsSync(path.join(root, '.crew')), false);
+  });
+
+  it('tells the orchestrator the model tier and review depth the user chose', () => {
+    const root = tempProject();
+    const ctx = run('UserPromptExpansion', { session_id: 's', command_name: 'agent-crew:new-project' }, { root, env: { CLAUDE_PLUGIN_OPTION_MODEL_TIER: 'economy', CLAUDE_PLUGIN_OPTION_REVIEW_DEPTH: 'qa-only' } }).output.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /model_tier=economy, review_depth=qa-only/);
+  });
+});
+
 describe('spending cap', () => {
   const start = (env, input = {}) => {
     const root = tempProject();
@@ -190,7 +212,7 @@ describe('crew sessions', () => {
         started_at: 'x',
         assistant: 'claude-code',
         transcript_path: '/tmp/t.jsonl',
-        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', host: 'interactive' },
+        config: { autonomy: 'full', briefReviewMinutes: 10, budgetCapUsd: 0, stackProfile: 'tanstack', modelTier: 'balanced', reviewDepth: 'every-task', host: 'interactive' },
       },
     );
     assert.equal(readFileSync(path.join(root, '.crew', '.gitignore'), 'utf8'), 'logs/\nsessions/\n');

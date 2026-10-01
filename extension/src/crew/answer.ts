@@ -3,7 +3,7 @@
 // the session continues, records an ADR and resolves the escalation.
 
 import { answerEscalation } from '../../../crew-contract/src/index';
-import type { EscalationView, SessionView } from './model';
+import type { EscalationView } from './model';
 
 export interface AnswerChoice {
   label: string;
@@ -22,11 +22,10 @@ export function answeredText(fileText: string, answer: string, at: Date): string
 }
 
 /**
- * What to send to Claude Code so the crew picks the answer up: in the run's own session a short
- * nudge is enough (the orchestration skill is loaded there); a new session resumes the run
- * through the crew command.
+ * What to send to Claude Code so the crew picks the run up, with the answer just given if any.
+ * Always the crew's own command: it reads the state from .crew/, and it is what switches the
+ * plugin's hooks on in a session — plain text would continue the run without them in a new chat.
  */
-export function continuePrompt(e: EscalationView | undefined, answer: string | undefined, session: SessionView | undefined): string {
-  if (!session) return '/agent-crew:new-project';
-  return e && answer ? `${e.id} is answered: "${answer.replace(/\s+/g, ' ').trim()}". Continue the crew run.` : 'Continue the crew run.';
+export function continuePrompt(e: EscalationView | undefined, answer: string | undefined): string {
+  return e && answer ? `/agent-crew:continue ${e.id} is answered: "${answer.replace(/\s+/g, ' ').trim()}"` : '/agent-crew:continue';
 }

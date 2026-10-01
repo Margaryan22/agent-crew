@@ -230,7 +230,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<CrewTe
   async function continueRun(): Promise<void> {
     if (!(await ensureReady())) return;
     const session = snapshot().latestSession;
-    await launch(continuePrompt(undefined, undefined, session), session?.id);
+    await launch(continuePrompt(undefined, undefined), session?.id);
   }
 
   function findEscalation(arg: unknown): EscalationView | undefined {
@@ -271,7 +271,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<CrewTe
     await writeAnswer(e, answer);
     const session = snapshot().latestSession;
     const choice = await vscode.window.showInformationMessage(`${e.id} answered. The crew picks it up when the session continues.`, 'Continue in Claude Code');
-    if (choice) await launch(continuePrompt(e, answer, session), session?.id);
+    if (choice) await launch(continuePrompt(e, answer), session?.id);
   }
 
   register('crew.newProject', newProject);

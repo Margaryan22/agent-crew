@@ -19,7 +19,13 @@ Work on T-004. Task: .crew/tasks/T-004.md. Brief: .crew/brief.md (AC-03, AC-04).
 ```
 
 - Always put the task id (`T-NNN`) in the first line — cost tracking reads it from there.
-- Pass `model` only when the task's `model` field says so (ladder rung "stronger model"): `model: "opus"`.
+- **Models.** The crew config line gives `model_tier`. Pass `model` in the Agent call as this table says; an empty cell means no `model` (the agent's own default). A task whose `model` field is set (ladder rung "stronger model") gets that model whatever the tier.
+
+  | `model_tier` | architect, critic, security | pm, qa, frontend, backend, db | keeper |
+  |---|---|---|---|
+  | `economy` | `sonnet` | | |
+  | `balanced` | | | |
+  | `quality` | | `opus` | |
 - Use `run_in_background: false` when the next step depends on the result. To run independent work in parallel, put several Agent calls in **one message**; they run concurrently and all results come back together.
 - Run at most 3 agents at once, and never two tasks whose `files` or areas overlap.
 - When an agent returns, trust `.crew/` over its message: check `crew task show T-NNN` or `crew next`.
@@ -72,7 +78,7 @@ Repeat until `crew next` says all tasks are done or only blocked tasks remain:
 1. `crew check` — act on every finding: `stop` → stop (see Budget); `stuck` → stuck-detection skill; `act` → handle the answered escalation.
 2. `crew next`:
    - **Ready** → delegate to the owner: "Work on T-NNN …". The executor runs `crew task start`, builds, commits, and `crew task submit` (or `crew task fail`).
-   - **Waiting for review** → delegate to **qa** ("Review T-NNN at stage qa") or **security** ("Review T-NNN at stage security").
+   - **Waiting for review** → delegate to **qa** ("Review T-NNN at stage qa") or **security** ("Review T-NNN at stage security"). Which reviews a task gets depends on `review_depth` in the crew config line, and the `crew` CLI applies it by itself: `every-task` — QA, then security; `qa-only` — QA, then done; `final-only` — done on submit. Review what `crew next` lists, nothing more.
 3. When an agent returns without having submitted, passed, rejected or failed its task, record it yourself: `crew task fail T-NNN --error "<what the agent reported>"`.
 4. After a `crew task fail` / `reject`, read the **Next:** line of its output and follow it exactly (retry, retry on a stronger model, replan with the architect, or escalate).
 5. When a task reaches `done`: commit `.crew/` (`crew: T-NNN done`) and delegate to **keeper** in the background (`run_in_background: true`): "Update status after T-NNN."
@@ -80,7 +86,8 @@ Repeat until `crew next` says all tasks are done or only blocked tasks remain:
 If an escalation blocks tasks, keep running every task that does not depend on them.
 
 ### 8. Final — `phase=final`
-1. **qa**: "Final verification: run the full test suite and write .crew/reviews/final-qa.md."
+1. **qa**: "Final verification: run the full test suite and write .crew/reviews/final-qa.md." With `review_depth=final-only` add: "No task was reviewed: also review the code of every task against the brief and the stack rules."
+   With `review_depth` other than `every-task`, then **security**: "Review the whole project (all tasks since the last review) and write .crew/reviews/final-security.md." Must-fix findings become tasks; run them through the task loop before the report.
 2. Write `.crew/report.md` in the project language:
    - what was built, AC by AC (met / not met / partially, with the test that shows it);
    - test results (from `final-qa.md`);
@@ -106,3 +113,7 @@ In a crew session the plugin's Stop hook checks `.crew/` when you end your turn:
 ## Resuming
 
 When a session starts in a project with `.crew/` and the phase is not `done`: `crew summary`, `crew check`, then continue from the current phase. Never redo a phase whose artefacts are complete and valid.
+
+## Long runs: a fresh session costs nothing
+
+Everything the run needs is in `.crew/` and in git, so the conversation itself is disposable. Keep it small: delegate, read files instead of pasting them, one line per step. At a phase boundary — after the architecture, after decomposition, every few finished tasks — if this conversation has grown long or was compacted, commit `.crew/` and tell the human in one line that they can start a fresh chat with `/agent-crew:continue`; the run picks up exactly where it is. In an unattended run just continue.

@@ -2,6 +2,11 @@
 
 Versions with an odd minor (`0.1.x`, `0.3.x`) are pre-releases; even minors (`0.2.x`, `0.4.x`) are releases.
 
+## 0.3.1 — pre-release
+
+- **Continue in Claude Code** and answering a question now send `/agent-crew:continue`, so the run picks up in any chat — a fresh one too — with the plugin's safeguards on.
+- **Check Setup** no longer asks for Docker: with the plugin's default `auto` stack the crew builds on an embedded database.
+
 ## 0.3.0 — pre-release
 
 Agent Crew is now a control panel for the **agent-crew** plugin running in **Claude Code**, on the user's own Claude subscription (Anthropic does not allow third-party apps to sign in with Claude subscriptions).

@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-export const CREW_COMMANDS = ['new-project', 'feature'];
+export const CREW_COMMANDS = ['new-project', 'feature', 'continue', 'fix'];
 
 export function markerPath(root, sessionId) {
   return path.join(root, '.crew', 'sessions', `${String(sessionId).replace(/[^\w.-]/g, '_')}.json`);
@@ -28,7 +28,7 @@ export function pluginName(pluginRoot) {
   }
 }
 
-/** Does `/agent-crew:new-project` (or `/new-project` when unambiguous) start a crew session? */
+/** Does `/agent-crew:new-project` (or `/new-project` when unambiguous) start a crew session? `status` only reads, so it does not. */
 export function isCrewCommand(commandName, plugin) {
   if (!commandName) return false;
   const [prefix, cmd] = commandName.includes(':') ? commandName.split(':') : [plugin, commandName];

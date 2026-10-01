@@ -49,9 +49,7 @@ describe('answering escalations', () => {
   });
 
   it('builds the prompt that makes the crew continue', () => {
-    const session = { id: 's1', command: 'agent-crew:new-project', startedAt: '2026-09-30T10:00:00Z' };
-    expect(continuePrompt(escalation, 'Stripe\nplease', session)).toBe('E-002 is answered: "Stripe please". Continue the crew run.');
-    expect(continuePrompt(undefined, undefined, session)).toBe('Continue the crew run.');
-    expect(continuePrompt(escalation, 'Stripe', undefined)).toBe('/agent-crew:new-project');
+    expect(continuePrompt(escalation, 'Stripe\nplease')).toBe('/agent-crew:continue E-002 is answered: "Stripe please"');
+    expect(continuePrompt(undefined, undefined)).toBe('/agent-crew:continue');
   });
 });

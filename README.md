@@ -34,6 +34,8 @@ Requires Claude Code 2.1.271 or later and Node.js 22+. Nothing else: with the de
 | --- | --- |
 | `/agent-crew:new-project <idea>` | In an empty folder: interview → brief (reviewed by a critic) → architecture and security review → acceptance tests → tasks → build with QA and security review per task → report in `.crew/report.md`. |
 | `/agent-crew:feature <what to add>` | In an existing crew-built project: the same pipeline for one feature, on a `crew/<feature>` branch. |
+| `/agent-crew:fix <what is wrong>` | The short path for a bug or a small change: a test that shows the problem, the fix, one review. No interview, brief or architecture. |
+| `/agent-crew:continue [note]` | Pick a run up again — after a break, a usage limit, an answered question — in the same chat or a fresh one. Everything the run needs is in `.crew/`. |
 | `/agent-crew:status` | Where the run stands, what the crew needs from you, and spend. |
 
 Settings (`/plugin` → agent-crew, or `claude plugin install … --config KEY=VALUE`):
@@ -41,6 +43,8 @@ Settings (`/plugin` → agent-crew, or `claude plugin install … --config KEY=V
 | Setting | Default | |
 | --- | --- | --- |
 | `stack_profile` | `auto` | `auto`: the crew picks the stack that fits the idea, or detects the one your project already uses, and writes rules for exactly those technologies. `tanstack`: a ready-made starter with rules that ship with the plugin. |
+| `model_tier` | `balanced` | `economy`: every agent on the lighter models, to stay inside a Pro plan's limits. `balanced`: architect, critic and security reviewer on the strongest model. `quality`: developers and QA on it too. |
+| `review_depth` | `every-task` | `qa-only`: QA after each task, one security review of the whole project at the end. `final-only`: one QA and security review at the end — fastest, for prototypes. |
 | `autonomy` | `full` | `review` waits for your approval of the brief. |
 | `budget_cap_usd` | `0` (no cap) | Only for pay-per-use sessions (API key, cloud provider, a model billed in usage credits). On a subscription leave it at 0: your plan's limits apply. |
 | `brief_review_minutes` | `10` | How long a host UI waits for the brief approval in `review` autonomy. |

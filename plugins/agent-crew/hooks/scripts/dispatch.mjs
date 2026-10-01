@@ -65,7 +65,7 @@ function contextBlock(contract, config, root, session) {
   const lines = [
     'Agent Crew session. You are the orchestrator: follow the agent-crew:orchestration skill (and agent-crew:stuck-detection when something is stuck); delegate the work to the agent-crew:* agents.',
     'Project state lives in .crew/ (tasks, escalations, decisions, status); change it with the `crew` CLI (`crew help`), which writes files that match the contract.',
-    `Crew config: autonomy=${config.autonomy}, stack_profile=${session.stack}, budget_cap_usd=${config.budgetCapUsd}${config.budgetCapUsd === 0 ? ' (no spending cap)' : ''}, brief_review_minutes=${config.briefReviewMinutes}, host=${config.host}.`,
+    `Crew config: autonomy=${config.autonomy}, stack_profile=${session.stack}, budget_cap_usd=${config.budgetCapUsd}${config.budgetCapUsd === 0 ? ' (no spending cap)' : ''}, model_tier=${config.modelTier}, review_depth=${config.reviewDepth}, brief_review_minutes=${config.briefReviewMinutes}, host=${config.host}.`,
   ];
   // A cap matters only where spend is real money; on a subscription nobody is asked about it.
   if (config.budgetCapUsd === 0 && session.payPerUse) {

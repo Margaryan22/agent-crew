@@ -445,6 +445,40 @@ describe('validate, interview, id', () => {
   });
 });
 
+describe('review depth', () => {
+  const withDepth = (root, depth) => {
+    mkdirSync(path.join(root, '.crew', 'sessions'), { recursive: true });
+    writeFileSync(path.join(root, '.crew/sessions/s.json'), JSON.stringify({ started_at: '2026-10-01T10:00:00Z', config: { reviewDepth: depth } }));
+  };
+  const status = async (root) => (await json(root, ['task', 'show', 'T-001'])).status;
+
+  it('qa-only: a task is done after QA, with no security stage', async () => {
+    const root = await started();
+    withDepth(root, 'qa-only');
+    await ok(root, ['task', 'new', '--title', 'Form', '--owner', 'frontend']);
+    await ok(root, ['task', 'start', 'T-001']);
+    assert.match(await ok(root, ['task', 'submit', 'T-001']), /waiting for QA review/);
+    assert.match(await ok(root, ['task', 'pass', 'T-001', '--stage', 'qa']), /passed QA and is done \(review depth qa-only/);
+    assert.equal(await status(root), 'done');
+  });
+
+  it('final-only: a task is done on submit; every-task keeps both stages', async () => {
+    const root = await started();
+    withDepth(root, 'final-only');
+    await ok(root, ['task', 'new', '--title', 'Form', '--owner', 'frontend']);
+    await ok(root, ['task', 'start', 'T-001']);
+    assert.match(await ok(root, ['task', 'submit', 'T-001']), /is done \(review depth final-only/);
+    assert.equal(await status(root), 'done');
+    assert.match(read(root, '.crew/tasks/T-001.md'), /done without a task review/);
+
+    const full = await started();
+    await ok(full, ['task', 'new', '--title', 'Form', '--owner', 'frontend']);
+    await ok(full, ['task', 'start', 'T-001']);
+    await ok(full, ['task', 'submit', 'T-001']);
+    assert.match(await ok(full, ['task', 'pass', 'T-001', '--stage', 'qa']), /waiting for security review/);
+  });
+});
+
 describe('scaffold', () => {
   it('copies the stack template without overwriting and creates .env', async () => {
     const root = path.join(project(), 'Barber Shop');

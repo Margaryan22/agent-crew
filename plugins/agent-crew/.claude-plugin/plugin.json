@@ -1,7 +1,7 @@
 {
   "name": "agent-crew",
   "displayName": "Agent Crew",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "A crew of AI agents (PM, critic, architect, QA, frontend, backend, DB, security) that turns an idea for a small-business tool into a working, tested project, on the stack that fits it. All state lives in .crew/ in the project.",
   "author": {
     "name": "Margaryan22",
@@ -58,6 +58,28 @@
       "default": 10,
       "min": 1,
       "max": 240
+    },
+    "model_tier": {
+      "type": "string",
+      "title": "Models",
+      "description": "economy: every agent runs on the lighter models, to stay inside a Pro plan's limits. balanced: the architect, the critic and the security reviewer use the strongest model, the rest the standard one. quality: developers and QA use the strongest model too.",
+      "options": [
+        "economy",
+        "balanced",
+        "quality"
+      ],
+      "default": "balanced"
+    },
+    "review_depth": {
+      "type": "string",
+      "title": "Reviews",
+      "description": "every-task: QA and a security review after each task. qa-only: QA after each task, one security review of the whole project at the end. final-only: no review per task, one QA and security review at the end — fastest, for prototypes.",
+      "options": [
+        "every-task",
+        "qa-only",
+        "final-only"
+      ],
+      "default": "every-task"
     }
   }
 }
