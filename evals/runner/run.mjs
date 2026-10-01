@@ -44,7 +44,11 @@ export function parseOptions(argv) {
     claude: ((c) => (c.includes('/') || c.includes(path.sep) ? path.resolve(c) : c))(get('claude', 'claude')),
     rounds: Number(get('rounds', '6')),
     timeoutMin: Number(get('timeout-min', '180')),
+    // A preset (the project starts from its template, in both modes) or `auto` (an empty folder: the crew picks the stack).
     stack: get('stack', 'tanstack'),
+    ideasDir: path.resolve(get('ideas-dir', path.join(evalsDir, 'ideas'))),
+    // --crew model_tier=economy --crew review_depth=qa-only: crew settings for the plugin mode.
+    crew: Object.fromEntries(argv.flatMap((a, i) => (a === '--crew' && /^[a-z_]+=.+$/.test(argv[i + 1] ?? '') ? [argv[i + 1].split(/=(.*)/s).slice(0, 2)] : []))),
     configDir: path.resolve(get('config-dir', path.join(evalsDir, '.claude-config'))),
     out: path.resolve(get('out', path.join(evalsDir, 'results'))),
     keep: argv.includes('--keep'),
@@ -67,7 +71,8 @@ function stamp(date) {
 
 export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   const o = parseOptions(argv);
-  const ideas = loadIdeas(path.join(evalsDir, 'ideas'), o.ideas);
+  const ideas = loadIdeas(o.ideasDir, o.ideas);
+  const fromTemplate = o.stack !== 'auto';
   const plan = ideas.flatMap((idea) => o.modes.map((mode) => ({ idea, mode })));
   log(`Agent Crew eval${o.continue ? `, continuing ${o.continue}` : ''}: ${plan.length} run${plan.length > 1 ? 's' : ''} (${ideas.map((i) => i.id).join(', ')} × ${o.modes.join(', ')}), model ${o.model}, up to $${o.budget} each — at most $${(o.budget * plan.length).toFixed(2)} in total.`);
   log(o.auth === 'subscription' ? `Auth: the Claude subscription signed in under ${o.configDir}; API keys in the environment are not passed on.` : 'Auth: ANTHROPIC_API_KEY with --bare.');
@@ -103,6 +108,7 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   // A continued run gets a fresh copy, so a fix made to the plugin in between takes effect.
   const pluginCopy = path.join(workRoot, 'plugin');
   rmSync(pluginCopy, { recursive: true, force: true });
+  mkdirSync(workRoot, { recursive: true });
   cpSync(pluginDir, pluginCopy, { recursive: true, filter: (src) => path.basename(src) !== 'node_modules' && !(path.basename(src) === 'evals' && path.dirname(src) === pluginDir) });
   let port = 55432;
   let browsersInstalled = false;
@@ -129,7 +135,7 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
     }
     mkdirSync(artifacts, { recursive: true });
     const resume = o.continue ? JSON.parse(readFileSync(stateFile, 'utf8')) : undefined;
-    const env = claudeEnv(process.env, { mode, auth: o.auth, configDir: o.configDir, capUsd: o.budget, stack: o.stack, composeProject: `crew-eval-${runId.toLowerCase()}-${name}` });
+    const env = claudeEnv(process.env, { mode, auth: o.auth, configDir: o.configDir, capUsd: o.budget, stack: o.stack, crew: o.crew, composeProject: `crew-eval-${runId.toLowerCase()}-${name}` });
     const runStart = new Date();
     current = { workdir, env };
     log(`\n▶ ${idea.id} / ${mode}  (${workdir})`);
@@ -138,14 +144,23 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
     try {
       if (resume) {
         removeHiddenTests(workdir); // an older runner left them in a kept project
-        log('  database up');
-        sh(workdir, env, 'docker', ['compose', 'up', '-d', '--wait'], 5 * 60 * 1000);
+        if (existsSync(path.join(workdir, 'docker-compose.yml'))) {
+          log('  database up');
+          sh(workdir, env, 'docker', ['compose', 'up', '-d', '--wait'], 5 * 60 * 1000);
+        }
       } else {
-        prepareWorkspace({ templateDir: path.join(pluginCopy, 'templates', o.stack), workdir, dbPort: port++ });
-        setupWorkspace({ workdir, env, log });
-        if (!browsersInstalled) {
-          sh(workdir, env, 'npx', ['playwright', 'install', 'chromium']);
-          browsersInstalled = true;
+        if (fromTemplate) {
+          prepareWorkspace({ templateDir: path.join(pluginCopy, 'templates', o.stack), workdir, dbPort: port++ });
+          setupWorkspace({ workdir, env, log });
+          if (!browsersInstalled) {
+            sh(workdir, env, 'npx', ['playwright', 'install', 'chromium']);
+            browsersInstalled = true;
+          }
+        } else {
+          // stack `auto`: an empty repository; choosing the stack and building the skeleton is part of the run.
+          mkdirSync(workdir, { recursive: true });
+          sh(workdir, env, 'git', ['init', '-q']);
+          sh(workdir, env, 'git', ['-c', 'user.name=Eval Runner', '-c', 'user.email=eval@agent-crew.test', 'commit', '-q', '--allow-empty', '-m', 'chore: empty project']);
         }
         if (mode === 'plugin') {
           sh(workdir, env, process.execPath, [path.join(pluginCopy, 'bin', 'crew'), 'init', '--stack', o.stack, '--language', idea.language]);
@@ -175,7 +190,9 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
       // A run that broke off (usage limit, crew waiting for a human) has no app to grade yet.
       const brokeOff = conversation.outcome === 'error' || conversation.outcome === 'waiting';
       if (brokeOff) log(`  hidden tests skipped: the run did not finish${o.keep ? ` — continue it with --continue ${runId}` : ''}`);
-      if (!o.skipHidden && !brokeOff) {
+      // The hidden tests drive the preset's project layout (its build and preview commands, its test runner).
+      if (!fromTemplate && !brokeOff && !o.skipHidden) log('  hidden tests skipped: with --stack auto the project layout is the crew\'s choice');
+      if (!o.skipHidden && !brokeOff && fromTemplate) {
         const source = path.join(evalsDir, 'hidden-tests', idea.id);
         log('  hidden tests');
         refreshDatabase({ workdir, env, log });

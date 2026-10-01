@@ -73,6 +73,7 @@ export function claudeEnv(base, o) {
     env.CREW_BUDGET_CAP_USD = String(o.capUsd);
     // The eval builds every idea from the same preset template, in both modes.
     if (o.stack) env.CREW_STACK_PROFILE = o.stack;
+    for (const [key, value] of Object.entries(o.crew ?? {})) env[`CREW_${key.toUpperCase()}`] = String(value);
   }
   env.COMPOSE_PROJECT_NAME = o.composeProject;
   // Background subagents may idle a while; let -p wait for them.

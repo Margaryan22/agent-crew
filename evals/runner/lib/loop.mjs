@@ -10,6 +10,8 @@ import * as C from '../../../plugins/agent-crew/lib/crew-contract.mjs';
 import { baselinePrompt, pluginPrompt } from './ideas.mjs';
 
 const FINAL_PHASES = new Set(['done', 'stopped', 'failed']);
+/** How a person picks a run up again; the runner does the same. */
+const CONTINUE = '/agent-crew:continue';
 
 function iso(date) {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -63,9 +65,9 @@ export function nextPluginStep(workdir, now) {
   if (phase && FINAL_PHASES.has(phase)) return { done: true, outcome: phase };
   const answered = answerOpenEscalations(workdir, now);
   if (answered.length) {
-    return { done: false, answered, prompt: `${answered.map((a) => `${a.id}: "${a.answer}"`).join('; ')} — answered by the owner. Continue the crew run.` };
+    return { done: false, answered, prompt: `${CONTINUE} ${answered.map((a) => `${a.id}: "${a.answer}"`).join('; ')} — answered by the owner.` };
   }
-  return { done: false, answered: [], prompt: 'Continue the crew run.' };
+  return { done: false, answered: [], prompt: CONTINUE };
 }
 
 /** The baseline is only nudged when it stopped to ask a question nobody will answer. */

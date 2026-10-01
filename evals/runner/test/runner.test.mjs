@@ -166,8 +166,8 @@ describe('conversation loop', () => {
         ['sess-1', 15],
       ],
     );
-    assert.equal(calls[1].prompt, 'E-001: "Green" — answered by the owner. Continue the crew run.');
-    assert.equal(calls[2].prompt, 'Continue the crew run.');
+    assert.equal(calls[1].prompt, '/agent-crew:continue E-001: "Green" — answered by the owner.');
+    assert.equal(calls[2].prompt, '/agent-crew:continue');
     assert.deepEqual({ outcome: result.outcome, rounds: result.rounds, interventions: result.interventions, escalations: result.escalations, cost: result.costUsd, minutes: result.durationMs / 60000 }, {
       outcome: 'done',
       rounds: 3,
@@ -267,7 +267,7 @@ describe('conversation loop', () => {
         return { result: { session_id: 'sess-1', subtype: 'success', total_cost_usd: 9 }, durationMs: 60_000, timedOut: false };
       },
     });
-    assert.deepEqual(calls.map((c) => [c.prompt, c.resume, c.sessionId, c.budgetUsd]), [['E-001: "Green" — answered by the owner. Continue the crew run.', 'sess-1', undefined, 16]]);
+    assert.deepEqual(calls.map((c) => [c.prompt, c.resume, c.sessionId, c.budgetUsd]), [['/agent-crew:continue E-001: "Green" — answered by the owner.', 'sess-1', undefined, 16]]);
     assert.deepEqual([result.outcome, result.costUsd, result.durationMs, result.interventions], ['done', 9, 660_000, 2]);
     // Nothing is called when the crew had already finished.
     const done = await runConversation({ mode: 'plugin', idea, workdir: dir, capUsd: 20, maxRounds: 6, resume: { sessionId: 'sess-1', costUsd: 9 }, callClaude: async () => assert.fail('no call expected') });
@@ -298,7 +298,7 @@ describe('conversation loop', () => {
     const file = path.join(dir, '.crew', 'escalations', 'E-001.md');
     writeFileSync(file, C.renderEscalation({ id: 'E-001', kind: 'access', source: 'plugin', status: 'open', question: 'Can you add the keys to .env?', options: ['I will add them myself', 'Use placeholders'], recommended: 'I will add them myself', created_at: '2026-09-30T10:00:00Z' }));
     const step = nextPluginStep(dir, () => new Date('2026-09-30T12:00:00Z'));
-    assert.match(step.prompt, /^E-001: "Nobody can do manual steps/);
+    assert.match(step.prompt, /^\/agent-crew:continue E-001: "Nobody can do manual steps/);
     assert.match(C.readEscalation(readFileSync(file, 'utf8'), 'E-001.md').value.answer, /use placeholders/);
   });
 
