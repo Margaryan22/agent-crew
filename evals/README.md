@@ -38,6 +38,7 @@ The crew loads a copy of the plugin in the temp folder, so no agent can read the
 | `--rounds` | `6` | Claude calls per run at most |
 | `--timeout-min` | `180` | per Claude call |
 | `--keep` | off | keep the project folders and databases |
+| `--continue <run id>` | | pick up a run kept with `--keep` where it stopped |
 
 **Auth.** `subscription` uses a Claude Code profile of its own, so your plugins, hooks and `CLAUDE.md` never leak into the baseline. Sign in to it once:
 
@@ -52,6 +53,8 @@ or export `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`. In this mode `ANT
 Before any setup, the runner checks the sign-in with `claude auth status` (no model call) and stops with instructions if it fails.
 
 Needs Node.js 22+, Docker running, and about 1 GB of disk per run while it runs.
+
+**Continuing a stopped run.** A run started with `--keep` can be picked up after it was stopped — a subscription usage limit, a sleeping laptop, Ctrl+C: `node evals/runner/run.mjs --yes --keep --continue <run id>` (the run id is the folder name in `evals/results/`). The runner starts the database again, takes a fresh copy of the plugin (so a fix made in between applies), and resumes the same Claude Code session with the spend so far; the restart counts as a human intervention. The CSV gets one more row for the run.
 
 Keep the computer awake for the whole run. On macOS the runner holds off idle sleep by itself (`caffeinate`), but a closed laptop lid on battery still puts the machine to sleep: the run freezes, the agent call in flight is cut, and the crew has to repeat it.
 

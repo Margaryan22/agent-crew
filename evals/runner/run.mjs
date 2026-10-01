@@ -7,11 +7,13 @@
 //   node evals/runner/run.mjs --yes [--ideas barbershop,bakery] [--modes baseline,plugin]
 //        [--model claude-sonnet-5-5] [--budget 20] [--auth subscription|api-key] [--claude claude]
 //        [--rounds 6] [--timeout-min 180] [--keep]
+//   node evals/runner/run.mjs --yes --continue <run id> [--ideas …] [--modes …]   (a run kept with --keep)
 //
 // Every run calls the model and costs money or plan usage: at most ideas × modes × --budget.
 
 import { spawn } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +48,8 @@ export function parseOptions(argv) {
     configDir: path.resolve(get('config-dir', path.join(evalsDir, '.claude-config'))),
     out: path.resolve(get('out', path.join(evalsDir, 'results'))),
     keep: argv.includes('--keep'),
+    // The id of a stopped run (its folder name in results/) to pick up where it was.
+    continue: get('continue'),
     yes: argv.includes('--yes'),
     dryRun: argv.includes('--dry-run'),
     skipHidden: argv.includes('--skip-hidden'),
@@ -53,6 +57,7 @@ export function parseOptions(argv) {
   for (const m of options.modes) if (m !== 'baseline' && m !== 'plugin') throw new Error(`--modes: unknown mode "${m}"`);
   if (options.auth !== 'subscription' && options.auth !== 'api-key') throw new Error('--auth must be subscription or api-key');
   if (!(options.budget > 0)) throw new Error('--budget must be a positive number of USD');
+  if (options.continue !== undefined && !/^\d{8}T\d{6}Z$/.test(options.continue)) throw new Error('--continue takes a run id like 20261001T100746Z');
   return options;
 }
 
@@ -64,7 +69,7 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   const o = parseOptions(argv);
   const ideas = loadIdeas(path.join(evalsDir, 'ideas'), o.ideas);
   const plan = ideas.flatMap((idea) => o.modes.map((mode) => ({ idea, mode })));
-  log(`Agent Crew eval: ${plan.length} run${plan.length > 1 ? 's' : ''} (${ideas.map((i) => i.id).join(', ')} × ${o.modes.join(', ')}), model ${o.model}, up to $${o.budget} each — at most $${(o.budget * plan.length).toFixed(2)} in total.`);
+  log(`Agent Crew eval${o.continue ? `, continuing ${o.continue}` : ''}: ${plan.length} run${plan.length > 1 ? 's' : ''} (${ideas.map((i) => i.id).join(', ')} × ${o.modes.join(', ')}), model ${o.model}, up to $${o.budget} each — at most $${(o.budget * plan.length).toFixed(2)} in total.`);
   log(o.auth === 'subscription' ? `Auth: the Claude subscription signed in under ${o.configDir}; API keys in the environment are not passed on.` : 'Auth: ANTHROPIC_API_KEY with --bare.');
   if (o.dryRun) {
     for (const { idea, mode } of plan) log(`  ${idea.id} / ${mode}`);
@@ -89,12 +94,15 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
   }
 
   const started = new Date();
-  const runId = stamp(started);
+  const runId = o.continue ?? stamp(started);
   const csvFile = path.join(o.out, `${started.toISOString().slice(0, 10)}.csv`);
   const workRoot = path.join(os.tmpdir(), 'agent-crew-eval', runId);
+  if (o.continue && !existsSync(workRoot)) throw new Error(`nothing is kept for run ${runId} (${workRoot}): only a run started with --keep can be continued`);
   // The crew loads a copy of the plugin far from this repository, so no agent can wander from the
   // plugin folder into evals/hidden-tests; the plugin's own component evals stay behind too.
+  // A continued run gets a fresh copy, so a fix made to the plugin in between takes effect.
   const pluginCopy = path.join(workRoot, 'plugin');
+  rmSync(pluginCopy, { recursive: true, force: true });
   cpSync(pluginDir, pluginCopy, { recursive: true, filter: (src) => path.basename(src) !== 'node_modules' && !(path.basename(src) === 'evals' && path.dirname(src) === pluginDir) });
   let port = 55432;
   let browsersInstalled = false;
@@ -113,7 +121,14 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
     const name = `${idea.id}-${mode}`;
     const workdir = path.join(workRoot, name);
     const artifacts = path.join(o.out, runId, name);
+    const stateFile = path.join(artifacts, 'run-state.json');
+    const callsFile = path.join(artifacts, 'claude-calls.json');
+    if (o.continue && !(existsSync(workdir) && existsSync(stateFile))) {
+      log(`\n▷ ${idea.id} / ${mode}: nothing to continue (no kept project or no ${path.basename(stateFile)})`);
+      continue;
+    }
     mkdirSync(artifacts, { recursive: true });
+    const resume = o.continue ? JSON.parse(readFileSync(stateFile, 'utf8')) : undefined;
     const env = claudeEnv(process.env, { mode, auth: o.auth, configDir: o.configDir, capUsd: o.budget, composeProject: `crew-eval-${runId.toLowerCase()}-${name}` });
     const runStart = new Date();
     current = { workdir, env };
@@ -121,17 +136,22 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
     let conversation;
     let hidden;
     try {
-      prepareWorkspace({ templateDir: path.join(pluginCopy, 'templates', o.stack), workdir, dbPort: port++ });
-      setupWorkspace({ workdir, env, log });
-      if (!browsersInstalled) {
-        sh(workdir, env, 'npx', ['playwright', 'install', 'chromium']);
-        browsersInstalled = true;
+      if (resume) {
+        log('  database up');
+        sh(workdir, env, 'docker', ['compose', 'up', '-d', '--wait'], 5 * 60 * 1000);
+      } else {
+        prepareWorkspace({ templateDir: path.join(pluginCopy, 'templates', o.stack), workdir, dbPort: port++ });
+        setupWorkspace({ workdir, env, log });
+        if (!browsersInstalled) {
+          sh(workdir, env, 'npx', ['playwright', 'install', 'chromium']);
+          browsersInstalled = true;
+        }
+        if (mode === 'plugin') {
+          sh(workdir, env, process.execPath, [path.join(pluginCopy, 'bin', 'crew'), 'init', '--stack', o.stack, '--language', idea.language]);
+          writeFileSync(path.join(workdir, '.crew', 'interview.md'), interviewFile(idea));
+        }
       }
-      if (mode === 'plugin') {
-        sh(workdir, env, process.execPath, [path.join(pluginCopy, 'bin', 'crew'), 'init', '--stack', o.stack, '--language', idea.language]);
-        writeFileSync(path.join(workdir, '.crew', 'interview.md'), interviewFile(idea));
-      }
-      const calls = [];
+      const calls = resume && existsSync(callsFile) ? JSON.parse(readFileSync(callsFile, 'utf8')) : [];
       conversation = await runConversation({
         mode,
         idea,
@@ -139,11 +159,15 @@ export async function main(argv, log = (s) => process.stdout.write(`${s}\n`)) {
         capUsd: o.budget,
         maxRounds: o.rounds,
         log,
-        callClaude: async ({ prompt, resume, budgetUsd }) => {
-          const args = claudeArgs({ prompt, mode, model: o.model, budgetUsd, pluginDir: pluginCopy, auth: o.auth, resume, systemPromptFile: path.join(workdir, 'CLAUDE.md') });
+        sessionId: randomUUID(),
+        resume,
+        // What --continue needs, saved before and after every call: a killed call leaves no result.
+        onState: (state) => writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`),
+        callClaude: async ({ prompt, resume: session, sessionId, budgetUsd }) => {
+          const args = claudeArgs({ prompt, mode, model: o.model, budgetUsd, pluginDir: pluginCopy, auth: o.auth, resume: session, sessionId, systemPromptFile: path.join(workdir, 'CLAUDE.md') });
           const r = await runClaude(o.claude, args, { cwd: workdir, env, timeoutMs: o.timeoutMin * 60 * 1000 });
-          calls.push({ prompt, resume, code: r.code, timedOut: r.timedOut, durationMs: r.durationMs, result: r.result, stderr: r.stderr });
-          writeFileSync(path.join(artifacts, 'claude-calls.json'), JSON.stringify(calls, null, 2));
+          calls.push({ prompt, resume: session, code: r.code, timedOut: r.timedOut, durationMs: r.durationMs, result: r.result, stderr: r.stderr });
+          writeFileSync(callsFile, JSON.stringify(calls, null, 2));
           return r;
         },
       });

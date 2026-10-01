@@ -20,6 +20,7 @@ if (argv[0] === 'auth' && argv[1] === 'status') {
 const prompt = argv[argv.indexOf('-p') + 1] ?? '';
 const plugin = argv.includes('--plugin-dir');
 const resume = argv.includes('--resume') ? argv[argv.indexOf('--resume') + 1] : undefined;
+const sessionId = argv.includes('--session-id') ? argv[argv.indexOf('--session-id') + 1] : undefined;
 const cwd = process.cwd();
 
 // Which idea: the one whose first words appear in the prompt.
@@ -53,4 +54,4 @@ if (!resume) {
 }
 
 const calls = resume ? 2 : 1;
-process.stdout.write(`${JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: resume ?? `fake-${ideaId}-${plugin ? 'plugin' : 'baseline'}`, total_cost_usd: calls * 1.25, num_turns: 3, duration_ms: 1000, result: 'Done.' })}\n`);
+process.stdout.write(`${JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: resume ?? sessionId ?? `fake-${ideaId}-${plugin ? 'plugin' : 'baseline'}`, total_cost_usd: calls * 1.25, num_turns: 3, duration_ms: 1000, result: 'Done.' })}\n`);

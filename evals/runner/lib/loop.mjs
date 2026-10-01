@@ -68,14 +68,34 @@ function recordHeadlessCost(workdir, sessionId, totalUsd, now) {
 
 /**
  * @param {{ mode: 'baseline' | 'plugin', idea: object, workdir: string, capUsd: number, maxRounds: number,
- *   callClaude: (o: { prompt: string, resume?: string, budgetUsd: number }) => Promise<{ result?: any, durationMs: number, timedOut: boolean }>,
+ *   callClaude: (o: { prompt: string, resume?: string, sessionId?: string, budgetUsd: number }) => Promise<{ result?: any, durationMs: number, timedOut: boolean }>,
+ *   sessionId?: string, resume?: { sessionId: string, costUsd?: number, durationMs?: number, interventions?: number },
+ *   onState?: (s: { sessionId?: string, costUsd: number, durationMs: number, interventions: number }) => void,
  *   now?: () => Date, log?: (s: string) => void }} o
+ *   `sessionId` names a new conversation; `resume` continues a stopped one; `onState` is called
+ *   before and after every call with what a later `resume` needs.
  */
 export async function runConversation(o) {
   const now = o.now ?? (() => new Date());
   const log = o.log ?? (() => {});
-  const state = { sessionId: undefined, costUsd: 0, durationMs: 0, rounds: 0, interventions: 0, answered: [], outcome: 'rounds', lastSubtype: undefined };
-  let prompt = o.mode === 'plugin' ? pluginPrompt(o.idea) : baselinePrompt(o.idea);
+  const prev = o.resume;
+  const state = { sessionId: prev?.sessionId, costUsd: prev?.costUsd ?? 0, durationMs: prev?.durationMs ?? 0, rounds: 0, interventions: prev?.interventions ?? 0, answered: [], outcome: 'rounds', lastSubtype: undefined };
+  const finish = () => ({ ...state, escalations: o.mode === 'plugin' ? escalationFiles(o.workdir).length : state.interventions });
+  // A new conversation gets its id up front, so a call that is killed can still be continued.
+  const newSessionId = prev ? undefined : o.sessionId;
+  const save = () => o.onState?.({ sessionId: state.sessionId ?? newSessionId, costUsd: state.costUsd, durationMs: state.durationMs, interventions: state.interventions });
+
+  let prompt;
+  if (prev) {
+    // Continuing a stopped run in the same session; the restart counts as a human intervention.
+    const next = o.mode === 'plugin' ? nextPluginStep(o.workdir, now) : { done: false, answered: [], prompt: 'The run was interrupted. Continue and finish the app and its tests.' };
+    if (next.done) return { ...finish(), outcome: next.outcome };
+    state.answered.push(...next.answered);
+    state.interventions += 1;
+    prompt = next.prompt;
+  } else {
+    prompt = o.mode === 'plugin' ? pluginPrompt(o.idea) : baselinePrompt(o.idea);
+  }
 
   while (state.rounds < o.maxRounds) {
     const budgetUsd = o.capUsd - state.costUsd;
@@ -83,18 +103,20 @@ export async function runConversation(o) {
       state.outcome = 'budget';
       break;
     }
-    const r = await o.callClaude({ prompt, resume: state.sessionId, budgetUsd });
+    save();
+    const r = await o.callClaude({ prompt, resume: state.sessionId, sessionId: state.sessionId ? undefined : newSessionId, budgetUsd });
     state.rounds += 1;
     state.durationMs += r.durationMs;
     if (!r.result) {
       state.outcome = r.timedOut ? 'timeout' : 'error';
       break;
     }
-    state.sessionId = r.result.session_id ?? state.sessionId;
+    state.sessionId = r.result.session_id ?? state.sessionId ?? newSessionId;
     const before = state.costUsd;
     // On --resume Claude Code reports the conversation's running total.
     state.costUsd = Math.max(state.costUsd, Number(r.result.total_cost_usd ?? 0));
     state.lastSubtype = r.result.subtype;
+    save();
     if (o.mode === 'plugin') recordHeadlessCost(o.workdir, state.sessionId, state.costUsd, now);
     log(`  round ${state.rounds}: ${r.result.subtype ?? 'result'}, $${state.costUsd.toFixed(2)} so far`);
     if (r.result.is_error && state.costUsd - before < 0.01 && !/budget/i.test(String(r.result.subtype ?? ''))) {
@@ -121,8 +143,6 @@ export async function runConversation(o) {
     state.interventions += 1;
     prompt = next.prompt;
   }
-  return {
-    ...state,
-    escalations: o.mode === 'plugin' ? escalationFiles(o.workdir).length : state.interventions,
-  };
+  save();
+  return finish();
 }

@@ -31,7 +31,7 @@ export const ALLOWED_TOOLS = [
 ];
 
 /**
- * @param {{ prompt: string, mode: 'baseline' | 'plugin', model: string, budgetUsd: number, pluginDir: string, auth: 'subscription' | 'api-key', resume?: string, systemPromptFile?: string }} o
+ * @param {{ prompt: string, mode: 'baseline' | 'plugin', model: string, budgetUsd: number, pluginDir: string, auth: 'subscription' | 'api-key', resume?: string, sessionId?: string, systemPromptFile?: string }} o
  */
 export function claudeArgs(o) {
   const args = ['-p', o.prompt, '--output-format', 'json', '--model', o.model, '--max-budget-usd', o.budgetUsd.toFixed(2), '--permission-mode', 'acceptEdits', '--permission-prompts', 'none', '--allowedTools', ALLOWED_TOOLS.join(',')];
@@ -42,6 +42,8 @@ export function claudeArgs(o) {
     if (o.systemPromptFile) args.push('--append-system-prompt-file', o.systemPromptFile);
   }
   if (o.resume) args.push('--resume', o.resume);
+  // The runner picks the id of a new conversation, so a call that is killed can be continued later.
+  else if (o.sessionId) args.push('--session-id', o.sessionId);
   return args;
 }
 

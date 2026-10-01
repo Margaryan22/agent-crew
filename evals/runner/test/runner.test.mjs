@@ -70,6 +70,9 @@ describe('claude invocation', () => {
     assert.ok(!ALLOWED_TOOLS.some((t) => /rm \*|sudo/.test(t)));
     const bare = claudeArgs({ ...base, mode: 'baseline', auth: 'api-key', systemPromptFile: '/w/CLAUDE.md' });
     assert.deepEqual(bare.slice(14), ['--bare', '--append-system-prompt-file', '/w/CLAUDE.md']);
+    // A new conversation is started under the runner's id; a resumed one keeps its own.
+    assert.deepEqual(claudeArgs({ ...base, mode: 'baseline', sessionId: 'new-id' }).slice(14), ['--session-id', 'new-id']);
+    assert.deepEqual(claudeArgs({ ...base, mode: 'baseline', sessionId: 'new-id', resume: 'sess-1' }).slice(14), ['--resume', 'sess-1']);
   });
 
   it('isolates the child environment', () => {
@@ -220,6 +223,57 @@ describe('conversation loop', () => {
     assert.equal(worked.outcome, 'rounds');
   });
 
+  it('names a new conversation up front and saves what a later --continue needs', async () => {
+    const dir = crewProject();
+    const calls = [];
+    const saved = [];
+    await runConversation({
+      mode: 'plugin',
+      idea,
+      workdir: dir,
+      capUsd: 20,
+      maxRounds: 6,
+      sessionId: 'new-id',
+      onState: (s) => saved.push(s),
+      callClaude: async (o) => {
+        calls.push(o);
+        if (calls.length === 2) setPhase(dir, 'done');
+        return { result: { session_id: 'new-id', subtype: 'success', total_cost_usd: calls.length * 3 }, durationMs: 60_000, timedOut: false };
+      },
+    });
+    assert.deepEqual(calls.map((c) => [c.sessionId, c.resume]), [['new-id', undefined], [undefined, 'new-id']]);
+    // Saved before the first call returns: a killed call can still be continued.
+    assert.deepEqual(saved[0], { sessionId: 'new-id', costUsd: 0, durationMs: 0, interventions: 0 });
+    assert.deepEqual(saved.at(-1), { sessionId: 'new-id', costUsd: 6, durationMs: 120_000, interventions: 1 });
+  });
+
+  it('continues a stopped run in its session, with its spend and answers', async () => {
+    const dir = crewProject();
+    setPhase(dir, 'tasks');
+    escalation(dir);
+    const calls = [];
+    const result = await runConversation({
+      mode: 'plugin',
+      idea,
+      workdir: dir,
+      capUsd: 20,
+      maxRounds: 6,
+      sessionId: 'unused',
+      resume: { sessionId: 'sess-1', costUsd: 4, durationMs: 600_000, interventions: 1 },
+      now: () => new Date('2026-09-30T12:00:00Z'),
+      callClaude: async (o) => {
+        calls.push(o);
+        setPhase(dir, 'done');
+        return { result: { session_id: 'sess-1', subtype: 'success', total_cost_usd: 9 }, durationMs: 60_000, timedOut: false };
+      },
+    });
+    assert.deepEqual(calls.map((c) => [c.prompt, c.resume, c.sessionId, c.budgetUsd]), [['E-001: "Green" — answered by the owner. Continue the crew run.', 'sess-1', undefined, 16]]);
+    assert.deepEqual([result.outcome, result.costUsd, result.durationMs, result.interventions], ['done', 9, 660_000, 2]);
+    // Nothing is called when the crew had already finished.
+    const done = await runConversation({ mode: 'plugin', idea, workdir: dir, capUsd: 20, maxRounds: 6, resume: { sessionId: 'sess-1', costUsd: 9 }, callClaude: async () => assert.fail('no call expected') });
+    assert.deepEqual([done.outcome, done.rounds, done.costUsd], ['done', 0, 9]);
+  });
+
   it('runs the baseline once unless it ends with a question', async () => {
     const dir = temp();
     const texts = ['Should I use Postgres?', 'Done: the app is built.'];
@@ -283,6 +337,8 @@ describe('command line', () => {
     assert.throws(() => parseOptions(['--modes', 'solo']), /unknown mode/);
     assert.throws(() => parseOptions(['--budget', '0']), /positive/);
     assert.throws(() => parseOptions(['--auth', 'magic']), /subscription or api-key/);
+    assert.equal(parseOptions(['--continue', '20261001T100746Z']).continue, '20261001T100746Z');
+    assert.throws(() => parseOptions(['--continue', 'latest']), /run id/);
   });
 
   it('never starts paid runs without --yes', async () => {
