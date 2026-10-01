@@ -3,7 +3,8 @@
 // option (answered_by: eval) and the session is resumed; every resume counts as a human
 // intervention. The baseline runs once and is resumed only if it ends with a question.
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as C from '../../../plugins/agent-crew/lib/crew-contract.mjs';
 import { baselinePrompt, pluginPrompt } from './ideas.mjs';
@@ -24,7 +25,22 @@ export function escalationFiles(workdir) {
   return existsSync(dir) ? readdirSync(dir).filter((n) => /^E-\d+.*\.md$/i.test(n)) : [];
 }
 
-/** Answers every open escalation with its recommended option; returns the ids answered. */
+const NO_HUMAN = 'Nobody can do manual steps, grant access or provide credentials in this run. Go on without it: take the option the crew can carry out by itself, or use placeholders and note it in the report.';
+
+/** What the crew has on record. Two rounds without a change mean it is waiting for a human. */
+export function crewFingerprint(workdir) {
+  const dir = path.join(workdir, '.crew');
+  const hash = createHash('sha256');
+  for (const rel of ['status.md', 'brief.md', 'report.md', 'tasks', 'escalations', 'decisions', 'reviews']) {
+    const abs = path.join(dir, rel);
+    if (!existsSync(abs)) continue;
+    const files = statSync(abs).isDirectory() ? readdirSync(abs).sort().map((n) => path.join(abs, n)) : [abs];
+    for (const f of files) if (statSync(f).isFile()) hash.update(`${path.relative(dir, f)}\0`).update(readFileSync(f));
+  }
+  return hash.digest('hex');
+}
+
+/** Answers every open escalation — with its recommended option, or "do without" when it asks a human to act; returns the ids answered. */
 export function answerOpenEscalations(workdir, now) {
   const answered = [];
   for (const name of escalationFiles(workdir)) {
@@ -32,7 +48,9 @@ export function answerOpenEscalations(workdir, now) {
     const text = readFileSync(file, 'utf8');
     const e = C.readEscalation(text, name).value;
     if (e.status !== 'open') continue;
-    const choice = e.recommended ?? e.options[0] ?? 'Proceed as you recommend.';
+    // Nobody is at the keyboard: an answer that promises a manual step ("I'll add it myself")
+    // would leave the crew waiting for something that never happens.
+    const choice = e.kind === 'access' || e.kind === 'permission' ? NO_HUMAN : (e.recommended ?? e.options[0] ?? 'Proceed as you recommend.');
     writeFileSync(file, C.answerEscalation(text, { text: choice, by: 'eval', at: iso(now()) }));
     answered.push({ id: e.id, answer: choice });
   }
@@ -85,6 +103,8 @@ export async function runConversation(o) {
   const newSessionId = prev ? undefined : o.sessionId;
   const save = () => o.onState?.({ sessionId: state.sessionId ?? newSessionId, costUsd: state.costUsd, durationMs: state.durationMs, interventions: state.interventions });
 
+  let lastPrint;
+  let unchanged = 0;
   let prompt;
   if (prev) {
     // Continuing a stopped run in the same session; the restart counts as a human intervention.
@@ -134,10 +154,21 @@ export async function runConversation(o) {
       state.outcome = 'timeout';
       break;
     }
+    const print = o.mode === 'plugin' ? crewFingerprint(o.workdir) : undefined;
     const next = o.mode === 'plugin' ? nextPluginStep(o.workdir, now) : nextBaselineStep(r.result, state.interventions);
     if (next.done) {
       state.outcome = next.outcome;
       break;
+    }
+    if (o.mode === 'plugin') {
+      unchanged = print === lastPrint ? unchanged + 1 : 0;
+      lastPrint = print;
+      if (unchanged >= 2 && !next.answered.length) {
+        // The crew keeps ending its turn with the same state: it waits for something only a human can do.
+        state.outcome = 'waiting';
+        log('  stopped: nothing in .crew/ changed in two rounds — the crew is waiting for a human');
+        break;
+      }
     }
     state.answered.push(...next.answered);
     state.interventions += 1;

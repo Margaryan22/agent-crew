@@ -9,7 +9,7 @@ import { ALLOWED_TOOLS, authProblem, claudeArgs, claudeEnv, parseResult } from '
 import { appendRow, COLUMNS, csvLine } from '../lib/csv.mjs';
 import { countTests, summarize } from '../lib/hidden.mjs';
 import { baselinePrompt, interviewFile, loadIdeas, parseIdea, pluginPrompt } from '../lib/ideas.mjs';
-import { nextBaselineStep, runConversation } from '../lib/loop.mjs';
+import { nextBaselineStep, nextPluginStep, runConversation } from '../lib/loop.mjs';
 import { envFile } from '../lib/workspace.mjs';
 import { main, parseOptions } from '../run.mjs';
 
@@ -272,6 +272,34 @@ describe('conversation loop', () => {
     // Nothing is called when the crew had already finished.
     const done = await runConversation({ mode: 'plugin', idea, workdir: dir, capUsd: 20, maxRounds: 6, resume: { sessionId: 'sess-1', costUsd: 9 }, callClaude: async () => assert.fail('no call expected') });
     assert.deepEqual([done.outcome, done.rounds, done.costUsd], ['done', 0, 9]);
+  });
+
+  it('stops when the crew waits for a human instead of spending the rounds', async () => {
+    // Seen in a live run: the crew asked for a manual edit and every "Continue" got the same reply.
+    const dir = crewProject();
+    setPhase(dir, 'tasks');
+    let calls = 0;
+    const lines = [];
+    const result = await runConversation({
+      mode: 'plugin',
+      idea,
+      workdir: dir,
+      capUsd: 20,
+      maxRounds: 10,
+      log: (l) => lines.push(l),
+      callClaude: async () => ({ result: { session_id: 's', subtype: 'success', total_cost_usd: (calls += 1) * 0.05 }, durationMs: 1000, timedOut: false }),
+    });
+    assert.deepEqual([result.outcome, result.rounds], ['waiting', 3]);
+    assert.match(lines.at(-1), /waiting for a human/);
+  });
+
+  it('tells the crew to do without when an escalation needs a human to act', async () => {
+    const dir = crewProject();
+    const file = path.join(dir, '.crew', 'escalations', 'E-001.md');
+    writeFileSync(file, C.renderEscalation({ id: 'E-001', kind: 'access', source: 'plugin', status: 'open', question: 'Can you add the keys to .env?', options: ['I will add them myself', 'Use placeholders'], recommended: 'I will add them myself', created_at: '2026-09-30T10:00:00Z' }));
+    const step = nextPluginStep(dir, () => new Date('2026-09-30T12:00:00Z'));
+    assert.match(step.prompt, /^E-001: "Nobody can do manual steps/);
+    assert.match(C.readEscalation(readFileSync(file, 'utf8'), 'E-001.md').value.answer, /use placeholders/);
   });
 
   it('runs the baseline once unless it ends with a question', async () => {
